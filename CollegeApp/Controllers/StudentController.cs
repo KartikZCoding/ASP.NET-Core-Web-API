@@ -70,7 +70,7 @@ namespace CollegeApp.Controllers
 
         [HttpPost]
         [Route("Create")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public ActionResult<StudentDTO> GetStudentByName([FromBody] StudentDTO model)
@@ -92,7 +92,7 @@ namespace CollegeApp.Controllers
 
             model.Id = student.Id;
 
-            return Ok(student);
+            return CreatedAtRoute("GetStudentById", new { id = model.Id }, model);
         }
 
         [HttpGet("{name:alpha}", Name = "GetStudentByName")]
