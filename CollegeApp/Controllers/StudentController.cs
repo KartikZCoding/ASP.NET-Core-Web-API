@@ -73,10 +73,22 @@ namespace CollegeApp.Controllers
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StudentDTO> GetStudentByName([FromBody] StudentDTO model)
+        public ActionResult<StudentDTO> CreateStudent([FromBody] StudentDTO model)
         {
+            //if (!ModelState.IsValid)
+            //    return BadRequest(ModelState);
+
             if (model == null)
                 return BadRequest();
+
+            //if(model.AdmissionDate < DateTime.Now)
+            //{
+            //    //1. Directly adding error message to modelstate
+            //    //2. Using custom atribute
+            //    ModelState.AddModelError("Admission Error", "Admission date must be greater than or equal to todays date.");
+            //    return BadRequest(ModelState);
+            //}
+
 
             int newId = CollegeRepository.Students.LastOrDefault().Id + 1;
 
