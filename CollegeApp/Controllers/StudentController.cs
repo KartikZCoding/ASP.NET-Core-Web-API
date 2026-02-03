@@ -12,19 +12,6 @@ namespace CollegeApp.Controllers
         //public ActionResult<IEnumerable<Student>> GetStudents()
         public ActionResult<IEnumerable<StudentDTO>> GetStudents()
         {
-            //var students = new List<StudentDTO>();
-            //foreach (var student in CollegeRepository.Students)
-            //{
-            //    StudentDTO obj = new StudentDTO
-            //    {
-            //        Id = student.Id,
-            //        StudentName = student.StudentName,
-            //        Email = student.Email,
-            //        Address = student.Address
-            //    };
-            //    students.Add(obj);
-            //}
-
             //using LINQ query
             var students = CollegeRepository.Students.Select(s => new StudentDTO()
             {
@@ -35,9 +22,57 @@ namespace CollegeApp.Controllers
             });
 
             return Ok(students);
-            //return Ok(CollegeRepository.Students);
         }
 
+        [HttpPost]
+        [Route("Create")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public ActionResult<StudentDTO> CreateStudent([FromBody] StudentDTO model)
+        {
+            if (model == null)
+                return BadRequest();
+
+            int newId = CollegeRepository.Students.LastOrDefault().Id + 1;
+
+            Student student = new Student
+            {
+                Id = newId,
+                StudentName = model.StudentName,
+                Email = model.Email,
+                Address = model.Address
+            };
+
+            CollegeRepository.Students.Add(student);
+
+            model.Id = student.Id;
+
+            return CreatedAtRoute("GetStudentById", new { id = model.Id }, model);
+        }
+
+        [HttpPut]
+        [Route("Update")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public ActionResult UpdateStudent([FromBody] StudentDTO model)
+        {
+            if (model == null || model.Id <= 0)
+                return BadRequest();
+
+            var existingStudent = CollegeRepository.Students.Where(s => s.Id == model.Id).FirstOrDefault();
+
+            if (existingStudent == null)
+                return NotFound();
+
+            existingStudent.StudentName = model.StudentName;
+            existingStudent.Email = model.Email;
+            existingStudent.Address = model.Address;
+
+            return NoContent();
+        }
 
         [HttpGet]
         [Route("{id:int}", Name = "GetStudentById")]
@@ -65,46 +100,6 @@ namespace CollegeApp.Controllers
             };
 
             return Ok(studentDTO);
-        }
-
-
-        [HttpPost]
-        [Route("Create")]
-        [ProducesResponseType(StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public ActionResult<StudentDTO> CreateStudent([FromBody] StudentDTO model)
-        {
-            //if (!ModelState.IsValid)
-            //    return BadRequest(ModelState);
-
-            if (model == null)
-                return BadRequest();
-
-            //if(model.AdmissionDate < DateTime.Now)
-            //{
-            //    //1. Directly adding error message to modelstate
-            //    //2. Using custom atribute
-            //    ModelState.AddModelError("Admission Error", "Admission date must be greater than or equal to todays date.");
-            //    return BadRequest(ModelState);
-            //}
-
-
-            int newId = CollegeRepository.Students.LastOrDefault().Id + 1;
-
-            Student student = new Student
-            {
-                Id = newId,
-                StudentName = model.StudentName,
-                Email = model.Email,
-                Address = model.Address
-            };
-
-            CollegeRepository.Students.Add(student);
-
-            model.Id = student.Id;
-
-            return CreatedAtRoute("GetStudentById", new { id = model.Id }, model);
         }
 
         [HttpGet("{name:alpha}", Name = "GetStudentByName")]

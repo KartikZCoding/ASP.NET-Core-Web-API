@@ -16,9 +16,10 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 8. [Why and How to Use DTOs](#8-why-and-how-to-use-dtos)
 9. [HttpPost – Creating Resources](#9-httppost--creating-resources)
 10. [CreatedAtRoute – Proper POST Response](#10-createdatroute--proper-post-response)
-11. [Model Validation – Preventing Invalid Data](#11-model-validation--preventing-invalid-data)
-12. [Built-in Validation Attributes](#12-built-in-validation-attributes)
-13. [Custom Validation Attributes](#13-custom-validation-attributes)
+11. [HttpPut – Updating Resources](#11-httpput--updating-resources)
+12. [Model Validation – Preventing Invalid Data](#12-model-validation--preventing-invalid-data)
+13. [Built-in Validation Attributes](#13-built-in-validation-attributes)
+14. [Custom Validation Attributes](#14-custom-validation-attributes)
 
 ---
 
@@ -877,7 +878,153 @@ public ActionResult<StudentDTO> CreateStudent([FromBody] StudentDTO model)
 
 ---
 
-## 11. Model Validation – Preventing Invalid Data
+## 11. HttpPut – Updating Resources
+
+### 🤔 What is HttpPut?
+
+**`[HttpPut]`** is an HTTP verb attribute in ASP.NET Core Web API used to **update existing resources**. When a client wants to modify existing data (like updating a student's information), it sends a PUT request with the complete updated data in the request body.
+
+### Why Use HttpPut?
+
+| Purpose                  | Description                                         |
+| ------------------------ | --------------------------------------------------- |
+| **Update Data**          | Modify existing records in your database/repository |
+| **Full Resource Update** | Replaces the entire resource with new data          |
+| **Idempotent**           | Same request multiple times = same result           |
+| **Secure Data Transfer** | Data is in body, not URL (safer for sensitive info) |
+
+### When to Use HttpPut?
+
+- ✅ Updating a user profile
+- ✅ Modifying a student's information
+- ✅ Changing product details
+- ✅ Updating existing records completely
+
+> 💡 **PUT vs PATCH**: PUT replaces the entire resource, while PATCH applies partial modifications. This project uses PUT for complete updates.
+
+---
+
+### 📦 Example from This Project
+
+**StudentController.cs – UpdateStudent Method:**
+
+```csharp
+[HttpPut]
+[Route("Update")]
+[ProducesResponseType(StatusCodes.Status204NoContent)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public ActionResult UpdateStudent([FromBody] StudentDTO model)
+{
+    if (model == null || model.Id <= 0)
+        return BadRequest();
+
+    var existingStudent = CollegeRepository.Students.Where(s => s.Id == model.Id).FirstOrDefault();
+
+    if (existingStudent == null)
+        return NotFound();
+
+    existingStudent.StudentName = model.StudentName;
+    existingStudent.Email = model.Email;
+    existingStudent.Address = model.Address;
+
+    return NoContent();
+}
+```
+
+---
+
+### 🔑 Key Points
+
+1. **`[HttpPut]`** – Marks the method to handle PUT requests
+2. **`[FromBody]`** – Reads the updated data from request body
+3. **`model.Id <= 0`** – Validates that the ID is provided and valid
+4. **`FirstOrDefault()`** – Finds the existing record to update
+5. **Returns `204 NoContent`** – Standard response for successful update
+
+---
+
+### 📐 How HttpPut Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    HttpPut Update Flow                           │
+│                                                                  │
+│  Client PUT Request                                              │
+│  PUT /api/student/Update                                         │
+│  Body: { "id": 1, "studentName": "Updated Name", ... }          │
+│       │                                                          │
+│       ▼                                                          │
+│  ┌─────────────────────┐                                        │
+│  │  Validation Check   │                                        │
+│  │  - Is model null?   │                                        │
+│  │  - Is Id <= 0?      │                                        │
+│  └──────────┬──────────┘                                        │
+│             │ ✅ Valid                                           │
+│             ▼                                                    │
+│  ┌─────────────────────┐                                        │
+│  │  Find Existing      │                                        │
+│  │  Student by Id      │                                        │
+│  └──────────┬──────────┘                                        │
+│             │                                                    │
+│    ┌────────┴────────┐                                          │
+│    │                 │                                          │
+│    ▼                 ▼                                          │
+│  Found            Not Found                                     │
+│    │                 │                                          │
+│    ▼                 ▼                                          │
+│  Update          404 NotFound                                   │
+│  Properties                                                     │
+│    │                                                            │
+│    ▼                                                            │
+│  204 NoContent                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+> 💡 **Why 204 NoContent?** After a successful update, the client already knows the data they sent. Returning the updated object would be redundant, so 204 is more efficient.
+
+---
+
+### ⚡ PUT vs POST Comparison
+
+| Feature        | POST (Create)               | PUT (Update)                 |
+| -------------- | --------------------------- | ---------------------------- |
+| **Purpose**    | Create new resource         | Update existing resource     |
+| **Idempotent** | ❌ No                       | ✅ Yes                       |
+| **ID in Body** | ❌ Not required (generated) | ✅ Required (to find record) |
+| **Response**   | `201 Created` with Location | `204 NoContent` or `200 OK`  |
+| **Behavior**   | Adds new record each time   | Same result for same request |
+
+---
+
+### 🎯 Best Practices for PUT
+
+1. **Always validate the ID** – Check if `Id <= 0` or `Id == null`
+2. **Check if resource exists** – Return `404` if not found
+3. **Use DTOs** – Never accept/return database entities
+4. **Return `204 NoContent`** – Most efficient for updates
+5. **Handle validation** – Use model validation attributes
+6. **Use `[ProducesResponseType]`** – Document all possible responses
+7. **Make it idempotent** – Same request should produce same result
+
+---
+
+### 📋 Complete CRUD Operations
+
+Now you've learned all major CRUD operations:
+
+| Operation  | HTTP Verb | Endpoint                   | Description             |
+| ---------- | --------- | -------------------------- | ----------------------- |
+| **C**reate | POST      | `POST /api/student/Create` | Create new student      |
+| **R**ead   | GET       | `GET /api/student/All`     | Get all students        |
+| **R**ead   | GET       | `GET /api/student/{id}`    | Get student by ID       |
+| **U**pdate | PUT       | `PUT /api/student/Update`  | Update existing student |
+| **D**elete | DELETE    | `DELETE /api/student/{id}` | Delete student          |
+
+---
+
+## 12. Model Validation – Preventing Invalid Data
 
 ### 🤔 What is Model Validation?
 
@@ -940,7 +1087,7 @@ public class StudentController : ControllerBase
 
 ---
 
-## 12. Built-in Validation Attributes
+## 13. Built-in Validation Attributes
 
 ASP.NET Core provides many **built-in validation attributes** that you can apply to DTO properties to enforce rules.
 
@@ -1080,7 +1227,7 @@ When validation fails, ASP.NET Core returns:
 
 ---
 
-## 13. Custom Validation Attributes
+## 14. Custom Validation Attributes
 
 ### 🤔 When Built-in Attributes Aren't Enough
 
@@ -1255,6 +1402,7 @@ You've learned:
 - ✅ Why and how to use DTOs in Web APIs
 - ✅ How to use `[HttpPost]` to create new resources
 - ✅ How `CreatedAtRoute` provides proper REST responses
+- ✅ How to use `[HttpPut]` to update existing resources
 - ✅ Model validation to prevent invalid data
 - ✅ Built-in validation attributes (`[Required]`, `[EmailAddress]`, `[Range]`, etc.)
 - ✅ Creating custom validation attributes for business rules
