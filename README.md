@@ -17,9 +17,10 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 9. [HttpPost – Creating Resources](#9-httppost--creating-resources)
 10. [CreatedAtRoute – Proper POST Response](#10-createdatroute--proper-post-response)
 11. [HttpPut – Updating Resources](#11-httpput--updating-resources)
-12. [Model Validation – Preventing Invalid Data](#12-model-validation--preventing-invalid-data)
-13. [Built-in Validation Attributes](#13-built-in-validation-attributes)
-14. [Custom Validation Attributes](#14-custom-validation-attributes)
+12. [HttpPatch – Partial Updates](#12-httppatch--partial-updates)
+13. [Model Validation – Preventing Invalid Data](#13-model-validation--preventing-invalid-data)
+14. [Built-in Validation Attributes](#14-built-in-validation-attributes)
+15. [Custom Validation Attributes](#15-custom-validation-attributes)
 
 ---
 
@@ -34,6 +35,8 @@ In this guide, you'll learn:
 - How APIs evolved over time
 - The difference between traditional web apps and Web APIs
 - How to build your own API endpoints
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
 
 ---
 
@@ -96,6 +99,8 @@ In the early days, applications communicated using **SOAP (Simple Object Access 
 }
 ```
 
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
 ---
 
 ## 3. What is Web API?
@@ -155,6 +160,8 @@ In the early days, applications communicated using **SOAP (Simple Object Access 
 
 **Key Difference:** Web API exposes only **BLL** and **DAL** – no UI! This allows multiple frontends to consume the same backend.
 
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
 ---
 
 ## 4. Why Web API?
@@ -197,6 +204,8 @@ Web API Approach:
 | **Scalability**        | Scale frontend and backend independently |
 | **Technology Freedom** | Use React, Angular, Flutter – anything!  |
 | **Mobile Ready**       | Same API for web and mobile apps         |
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
 
 ---
 
@@ -248,6 +257,8 @@ Every API request has three main parts:
 | `400` | Bad Request           | Invalid request data          |
 | `404` | Not Found             | Resource doesn't exist        |
 | `500` | Internal Server Error | Server-side error             |
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
 
 ---
 
@@ -315,6 +326,8 @@ DELETE /api/student/1
 | POST   | Create | ❌ No  | ❌ No       |
 | PUT    | Update | ❌ No  | ✅ Yes      |
 | DELETE | Delete | ❌ No  | ✅ Yes      |
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
 
 ---
 
@@ -480,6 +493,8 @@ namespace CollegeApp.Controllers
    - `BadRequest()` – Returns 400
    - `NotFound()` – Returns 404
 
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
 ---
 
 ## 8. Why and How to Use DTOs
@@ -533,8 +548,6 @@ public ActionResult<Student> GetStudentById(int id)
 ```
 
 ---
-
-### 🛒 Real-World Example: Shopping Cart
 
 Imagine a shopping cart system:
 
@@ -705,6 +718,8 @@ namespace CollegeApp.Controllers
 4. **Add calculated fields** – DTOs can include computed values
 5. **Use LINQ for transformation** – Efficient way to map collections
 
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
 ---
 
 ## 9. HttpPost – Creating Resources
@@ -770,6 +785,8 @@ public ActionResult<StudentDTO> CreateStudent([FromBody] StudentDTO model)
 2. **`[FromBody]`** – Tells ASP.NET Core to read data from request body
 3. **`StudentDTO model`** – The DTO object containing student data from client
 4. **Returns `201 Created`** – Standard response for successful creation
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
 
 ---
 
@@ -875,6 +892,8 @@ public ActionResult<StudentDTO> CreateStudent([FromBody] StudentDTO model)
 | **Route Name**   | Name of the GET route to link to  | `"GetStudentById"`      |
 | **Route Values** | Parameters for the route URL      | `new { id = model.Id }` |
 | **Value**        | Object to return in response body | `model` (StudentDTO)    |
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
 
 ---
 
@@ -1022,9 +1041,341 @@ Now you've learned all major CRUD operations:
 | **U**pdate | PUT       | `PUT /api/student/Update`  | Update existing student |
 | **D**elete | DELETE    | `DELETE /api/student/{id}` | Delete student          |
 
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
 ---
 
-## 12. Model Validation – Preventing Invalid Data
+## 12. HttpPatch – Partial Updates
+
+### 🤔 What is HttpPatch?
+
+**`[HttpPatch]`** is an HTTP verb attribute in ASP.NET Core Web API used to **partially update existing resources**. Unlike PUT which requires sending the entire object, PATCH allows you to send only the fields you want to update.
+
+---
+
+### ❌ The Problem with HttpPut
+
+When using `[HttpPut]`, you must send **all fields** even if you want to update just one:
+
+```json
+// Want to update ONLY the email? Still need to send everything!
+PUT /api/Student/Update
+{
+    "id": 1,
+    "studentName": "Kartik",           // ❌ Redundant
+    "email": "newemail@gmail.com",     // ✅ Only this changed!
+    "address": "Hyd, India"            // ❌ Redundant
+}
+```
+
+**Drawbacks of HttpPut:**
+
+| Issue               | Description                                          |
+| ------------------- | ---------------------------------------------------- |
+| **Bandwidth Waste** | Sending unnecessary data over the network            |
+| **Performance**     | Larger payload = slower requests                     |
+| **Error-Prone**     | Client must know all field values to avoid data loss |
+| **Inefficient**     | Updating one field requires full object              |
+
+---
+
+### ✅ The Solution: HttpPatch
+
+With `[HttpPatch]`, send **only the fields you want to update**:
+
+```json
+// Update ONLY the email - much more efficient!
+PATCH /api/Student/UpdatePartial/1
+[
+    {
+        "op": "replace",
+        "path": "/email",
+        "value": "newemail@gmail.com"
+    }
+]
+```
+
+**Benefits of HttpPatch:**
+
+| Benefit            | Description                                      |
+| ------------------ | ------------------------------------------------ |
+| **Efficient**      | Send only changed fields                         |
+| **Less Bandwidth** | Smaller payload size                             |
+| **Flexible**       | Update one or multiple fields                    |
+| **Safe**           | No risk of accidentally overwriting other fields |
+
+---
+
+### 📦 Required NuGet Packages
+
+To use `[HttpPatch]` in ASP.NET Core, you need two libraries:
+
+#### 1. **Microsoft.AspNetCore.JsonPatch**
+
+Provides JSON Patch functionality according to RFC 6902 standard.
+
+```powershell
+Install-Package Microsoft.AspNetCore.JsonPatch
+```
+
+#### 2. **Microsoft.AspNetCore.Mvc.NewtonsoftJson**
+
+Adds Newtonsoft.Json support for handling JSON Patch documents.
+
+```powershell
+Install-Package Microsoft.AspNetCore.Mvc.NewtonsoftJson
+```
+
+**Add to Program.cs:**
+
+```csharp
+builder.Services.AddControllers()
+    .AddNewtonsoftJson();  // ◀── Required for JSON Patch
+```
+
+---
+
+### 📐 How HttpPatch Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    HttpPatch Update Flow                         │
+│                                                                  │
+│  Client PATCH Request                                            │
+│  PATCH /api/student/UpdatePartial/1                              │
+│  Body: [{ "op": "replace", "path": "/email", "value": "..." }] │
+│       │                                                          │
+│       ▼                                                          │
+│  ┌─────────────────────┐                                        │
+│  │  Find Student by Id │                                        │
+│  └──────────┬──────────┘                                        │
+│             │                                                    │
+│    ┌────────┴────────┐                                          │
+│    │                 │                                          │
+│    ▼                 ▼                                          │
+│  Found            Not Found                                     │
+│    │                 │                                          │
+│    ▼                 ▼                                          │
+│  Apply Patch     404 NotFound                                   │
+│  Operations                                                     │
+│  (Only changed                                                  │
+│   fields)                                                       │
+│    │                                                            │
+│    ▼                                                            │
+│  Validate                                                       │
+│  ModelState                                                     │
+│    │                                                            │
+│    ▼                                                            │
+│  204 NoContent                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 🎮 Example Implementation
+
+**StudentController.cs – UpdatePartialStudent Method:**
+
+```csharp
+using Microsoft.AspNetCore.JsonPatch;
+
+[HttpPatch]
+[Route("UpdatePartial/{id}")]
+[ProducesResponseType(StatusCodes.Status204NoContent)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public ActionResult UpdatePartialStudent(int id, [FromBody] JsonPatchDocument<StudentDTO> patchDocument)
+{
+    if (patchDocument == null || id <= 0)
+        return BadRequest();
+
+    // Find existing student
+    var existingStudent = CollegeRepository.Students
+        .Where(s => s.Id == id).FirstOrDefault();
+
+    if (existingStudent == null)
+        return NotFound();
+
+    // Convert to DTO
+    var studentDTO = new StudentDTO
+    {
+        Id = existingStudent.Id,
+        StudentName = existingStudent.StudentName,
+        Email = existingStudent.Email,
+        Address = existingStudent.Address
+    };
+
+    // Apply patch operations to DTO
+    patchDocument.ApplyTo(studentDTO, ModelState);
+
+    // Validate after applying patch
+    if (!ModelState.IsValid)
+        return BadRequest(ModelState);
+
+    // Update entity with patched values
+    existingStudent.StudentName = studentDTO.StudentName;
+    existingStudent.Email = studentDTO.Email;
+    existingStudent.Address = studentDTO.Address;
+
+    return NoContent();
+}
+```
+
+---
+
+### 🔑 Key Points
+
+1. **`JsonPatchDocument<StudentDTO>`** – Represents the patch operations
+2. **`ApplyTo()`** – Applies patch operations to the DTO
+3. **`ModelState`** – Validates the patched data
+4. **Field-level updates** – Only specified fields are modified
+5. **Returns `204 NoContent`** – Standard response for successful update
+
+---
+
+### 📊 JSON Patch Operation Types
+
+| Operation | Purpose                      | Example                             |
+| --------- | ---------------------------- | ----------------------------------- |
+| `add`     | Add or update value          | Add new property or update existing |
+| `remove`  | Remove property              | Set property to null/default        |
+| `replace` | Replace existing value       | Update field value                  |
+| `copy`    | Copy value from another path | Copy one field to another           |
+| `move`    | Move value to another path   | Move data between fields            |
+| `test`    | Test if value matches        | Verify before applying changes      |
+
+---
+
+### 🧪 Testing the PATCH Endpoint
+
+**Request Example 1: Update only email**
+
+```http
+PATCH /api/Student/UpdatePartial/1
+Content-Type: application/json-patch+json
+
+[
+    {
+        "op": "replace",
+        "path": "/email",
+        "value": "kartik.new@gmail.com"
+    }
+]
+```
+
+**Request Example 2: Update multiple fields**
+
+```http
+PATCH /api/Student/UpdatePartial/1
+Content-Type: application/json-patch+json
+
+[
+    {
+        "op": "replace",
+        "path": "/studentName",
+        "value": "Kartik Updated"
+    },
+    {
+        "op": "replace",
+        "path": "/address",
+        "value": "Bangalore, India"
+    }
+]
+```
+
+**Successful Response:**
+
+```http
+HTTP/1.1 204 No Content
+```
+
+---
+
+### ⚡ PUT vs PATCH Comparison
+
+| Feature          | PUT (Full Update)       | PATCH (Partial Update)           |
+| ---------------- | ----------------------- | -------------------------------- |
+| **Purpose**      | Replace entire resource | Update specific fields           |
+| **Payload**      | Must send all fields    | Send only changed fields         |
+| **Efficiency**   | ❌ Less efficient       | ✅ More efficient                |
+| **Bandwidth**    | ❌ Higher               | ✅ Lower                         |
+| **Use Case**     | Complete replacement    | Field-level updates              |
+| **Idempotent**   | ✅ Yes                  | ⚠️ Depends on operations         |
+| **Request Body** | Full object (JSON)      | Array of operations (JSON Patch) |
+| **Content-Type** | `application/json`      | `application/json-patch+json`    |
+
+---
+
+### 🎯 When to Use PUT vs PATCH?
+
+**Use PUT when:**
+
+- ✅ Updating the entire resource
+- ✅ You have all field values available
+- ✅ Simpler implementation needed
+- ✅ Client sends complete object anyway
+
+**Use PATCH when:**
+
+- ✅ Updating only specific fields
+- ✅ Optimizing bandwidth usage
+- ✅ Mobile apps or slow networks
+- ✅ User edits individual fields (e.g., profile updates)
+
+---
+
+### 🎯 Best Practices for PATCH
+
+1. **Use `application/json-patch+json` Content-Type** – Standard for JSON Patch
+2. **Validate after ApplyTo()** – Always check ModelState
+3. **Handle invalid paths gracefully** – Return proper error messages
+4. **Document operations** – Specify which operations are supported
+5. **Use DTOs** – Never patch entity models directly
+6. **Return `204 NoContent`** – Consistent with PUT behavior
+7. **Add NewtonsoftJson** – Required for JSON Patch support
+
+---
+
+### 💡 Real-World Example
+
+**Scenario:** User wants to update only their email in a profile page.
+
+**❌ With PUT (Inefficient):**
+
+```json
+PUT /api/student/Update
+{
+    "id": 1,
+    "studentName": "Kartik",
+    "email": "newemail@gmail.com",  // Only this changed!
+    "address": "Hyd, India",
+    "phone": "1234567890",
+    "dateOfBirth": "2000-01-01"
+    // ... 20 more fields
+}
+// Payload: ~500 bytes
+```
+
+**✅ With PATCH (Efficient):**
+
+```json
+PATCH /api/student/UpdatePartial/1
+[
+    {
+        "op": "replace",
+        "path": "/email",
+        "value": "newemail@gmail.com"
+    }
+]
+// Payload: ~80 bytes (85% reduction!)
+```
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
+## 13. Model Validation – Preventing Invalid Data
 
 ### 🤔 What is Model Validation?
 
@@ -1085,9 +1436,11 @@ public class StudentController : ControllerBase
 >     return BadRequest(ModelState);
 > ```
 
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
 ---
 
-## 13. Built-in Validation Attributes
+## 14. Built-in Validation Attributes
 
 ASP.NET Core provides many **built-in validation attributes** that you can apply to DTO properties to enforce rules.
 
@@ -1227,7 +1580,7 @@ When validation fails, ASP.NET Core returns:
 
 ---
 
-## 14. Custom Validation Attributes
+## 15. Custom Validation Attributes
 
 ### 🤔 When Built-in Attributes Aren't Enough
 
@@ -1387,6 +1740,8 @@ public ActionResult<StudentDTO> CreateStudent([FromBody] StudentDTO model)
 | **Custom Attributes**    | Complex/business-specific rules             | ✅ High     | Validators folder  |
 | **Manual in Controller** | One-time specific checks                    | ❌ Low      | Controller methods |
 
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
 ---
 
 ## 🎉 Conclusion
@@ -1403,6 +1758,8 @@ You've learned:
 - ✅ How to use `[HttpPost]` to create new resources
 - ✅ How `CreatedAtRoute` provides proper REST responses
 - ✅ How to use `[HttpPut]` to update existing resources
+- ✅ How to use `[HttpPatch]` for efficient partial updates
+- ✅ PUT vs PATCH comparison and when to use each
 - ✅ Model validation to prevent invalid data
 - ✅ Built-in validation attributes (`[Required]`, `[EmailAddress]`, `[Range]`, etc.)
 - ✅ Creating custom validation attributes for business rules

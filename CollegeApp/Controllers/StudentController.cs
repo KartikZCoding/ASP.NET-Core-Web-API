@@ -1,4 +1,5 @@
 ﻿using CollegeApp.Model;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CollegeApp.Controllers
@@ -9,7 +10,7 @@ namespace CollegeApp.Controllers
     {
         [HttpGet]
         [Route("All", Name = "GetAllStudents")]
-        //public ActionResult<IEnumerable<Student>> GetStudents()
+        [ProducesResponseType(StatusCodes.Status200OK)]
         public ActionResult<IEnumerable<StudentDTO>> GetStudents()
         {
             //using LINQ query
@@ -74,13 +75,48 @@ namespace CollegeApp.Controllers
             return NoContent();
         }
 
+        [HttpPatch]
+        [Route("{id:int}/UpdatePartial")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public ActionResult UpdateStudentPartial(int id,[FromBody] JsonPatchDocument<StudentDTO> patchDocument)
+        {
+            if (patchDocument == null || id <= 0)
+                return BadRequest();
+
+            var existingStudent = CollegeRepository.Students.Where(s => s.Id == id).FirstOrDefault();
+
+            if (existingStudent == null)
+                return NotFound();
+
+            var studentDTO = new StudentDTO
+            {
+                Id = existingStudent.Id,
+                StudentName = existingStudent.StudentName,
+                Email = existingStudent.Email,
+                Address = existingStudent.Address,
+            };
+
+            patchDocument.ApplyTo(studentDTO, ModelState);
+
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            existingStudent.StudentName = studentDTO.StudentName;
+            existingStudent.Email = studentDTO.Email;
+            existingStudent.Address = studentDTO.Address;
+
+            return NoContent();
+        }
+
         [HttpGet]
         [Route("{id:int}", Name = "GetStudentById")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        //public ActionResult<Student> GetStudentById(int id)
         public ActionResult<StudentDTO> GetStudentById(int id)
         {
             if (id <= 0)
@@ -107,7 +143,6 @@ namespace CollegeApp.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        //public ActionResult<Student> GetStudentByName(string name)
         public ActionResult<StudentDTO> GetStudentByName(string name)
         {
             if (string.IsNullOrEmpty(name))
