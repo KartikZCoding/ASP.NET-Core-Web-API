@@ -23,6 +23,7 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 15. [Custom Validation Attributes](#15-custom-validation-attributes)
 16. [Dependency Injection in Web API](#16-dependency-injection-in-web-api)
 17. [Built-in Logger in Web API](#17-built-in-logger-in-web-api)
+18. [Serilog – Advanced Logging](#18-serilog--advanced-logging)
 
 ---
 
@@ -2429,7 +2430,63 @@ Configure which log levels to display for different providers:
 
 ---
 
-## �🎉 Conclusion
+## 18. Serilog – Advanced Logging
+
+### 🤔 What is Serilog?
+
+**Serilog** is a third-party logging library for .NET that provides **structured logging** with support for multiple output destinations (called "sinks") like files, databases, and cloud services.
+
+---
+
+### 📦 Installation
+
+```bash
+dotnet add package Serilog.AspNetCore
+dotnet add package Serilog.Sinks.File
+```
+
+---
+
+### ⚙️ Configuration in Program.cs
+
+```csharp
+using Serilog;
+
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.File("Log/log.txt", rollingInterval: RollingInterval.Minute)
+    .CreateLogger();
+
+// Use Serilog along with built-in logger
+builder.Logging.AddSerilog();
+
+// OR override built-in logger completely
+// builder.Host.UseSerilog();
+```
+
+---
+
+### � Key Points
+
+| Method                         | Behavior                            |
+| ------------------------------ | ----------------------------------- |
+| `builder.Logging.AddSerilog()` | Adds Serilog alongside built-in     |
+| `builder.Host.UseSerilog()`    | Replaces built-in logger completely |
+
+| RollingInterval | Description                   |
+| --------------- | ----------------------------- |
+| `Minute`        | New file every minute         |
+| `Day`           | New file daily (⭐ most used) |
+| `Infinite`      | Single file, no rolling       |
+
+> 💡 Serilog integrates with `ILogger<T>`, so you use it the same way as the built-in logger in your controllers!
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
+## 🎉 Conclusion
 
 You've learned:
 
@@ -2450,6 +2507,7 @@ You've learned:
 - ✅ Creating custom validation attributes for business rules
 - ✅ Dependency Injection for loose coupling and maintainability
 - ✅ Built-in logger and log levels in Web API
+- ✅ Serilog for advanced structured logging with file output
 
 **Happy Coding!** 🚀
 

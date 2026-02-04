@@ -1,4 +1,5 @@
 using ASPNETCoreWebAPI.MyLogging;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,9 +11,17 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IMyLogger, LogToMemoryServer>();
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
-builder.Logging.AddDebug();
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.File("Log/log.txt", rollingInterval: RollingInterval.Minute)
+    .CreateLogger();
+
+//use this line to override the built-in logger
+//builder.Host.UseSerilog();
+
+//use serilog along with built-in logger
+builder.Logging.AddSerilog();
 
 var app = builder.Build();
 
