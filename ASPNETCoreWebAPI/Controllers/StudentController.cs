@@ -2,6 +2,7 @@
 using ASPNETCoreWebAPI.Model;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ASPNETCoreWebAPI.Controllers
 {
@@ -137,15 +138,26 @@ namespace ASPNETCoreWebAPI.Controllers
             if (model == null || model.Id <= 0)
                 return BadRequest();
 
-            var existingStudent = _dbContext.Students.Where(s => s.Id == model.Id).FirstOrDefault();
+            var existingStudent = _dbContext.Students.AsNoTracking().Where(s => s.Id == model.Id).FirstOrDefault();
 
             if (existingStudent == null)
                 return NotFound();
 
-            existingStudent.StudentName = model.StudentName;
-            existingStudent.Email = model.Email;
-            existingStudent.Address = model.Address;
-            existingStudent.DOB = model.DOB;
+            var newRecord = new Student()
+            {
+                Id = existingStudent.Id,
+                StudentName = model.StudentName,
+                Email = model.Email,
+                Address = model.Address,
+                DOB = model.DOB
+            };
+
+            _dbContext.Students.Update(newRecord);
+
+            //existingStudent.StudentName = model.StudentName;
+            //existingStudent.Email = model.Email;
+            //existingStudent.Address = model.Address;
+            //existingStudent.DOB = model.DOB;
 
             _dbContext.SaveChanges();
 
