@@ -26,6 +26,7 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 18. [Serilog – Advanced Logging](#18-serilog--advanced-logging)
 19. [Entity Framework Core](#19-entity-framework-core)
 20. [AutoMapper – Simplifying Object Mapping](#20-automapper--simplifying-object-mapping)
+21. [Repository Design Pattern](#21-repository-design-pattern)
 
 ---
 
@@ -3215,6 +3216,277 @@ ASPNETCoreWebAPI/
 
 ---
 
+## 21. Repository Design Pattern
+
+### 🤔 What is Repository Pattern?
+
+**Repository Pattern** is an abstraction of the Data Access Layer. It hides the details of how exactly the data is saved or retrieved from the underlying data source (like a database).
+
+Think of it as a **middleman** between your controller and the database. Instead of your controller directly talking to Entity Framework, it talks to the repository.
+
+---
+
+### ❌ The Problem: Direct Database Access in Controller
+
+In our `StudentController`, we were directly using `DbContext` for database operations:
+
+```csharp
+// ❌ Bad Practice: Controller directly using DbContext
+public class StudentController : ControllerBase
+{
+    private readonly CollegeDBContext _dbContext;
+
+    public async Task<ActionResult> GetStudentsAsync()
+    {
+        var students = await _dbContext.Students.ToListAsync();  // Direct DB access!
+        return Ok(students);
+    }
+}
+```
+
+> ⚠️ **Problems with this approach:**
+>
+> - Controller knows too much about database operations
+> - Hard to test (need real database)
+> - If database changes, controller code must change
+> - Duplicate code across controllers
+
+---
+
+### ✅ The Solution: Repository Pattern
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    WITHOUT REPOSITORY PATTERN                     │
+│                                                                    │
+│   StudentController  ─────▶  Entity Framework  ─────▶  Database   │
+│                                                                    │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     WITH REPOSITORY PATTERN                        │
+│                                                                    │
+│   StudentController ─▶ StudentRepository ─▶ Entity Framework ─▶ DB │
+│                            │                                       │
+│                    (Abstraction Layer)                             │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 📊 Repository Pattern Architecture
+
+```
+┌─────────────────────┐      ┌────────────────────┐      ┌────────────┐
+│    WEB API App      │      │     Repository     │      │  Database  │
+│    (Consumers)      │      │      Layer         │      │            │
+├─────────────────────┤      ├────────────────────┤      ├────────────┤
+│ StudentController   │ ───▶ │ StudentRepository  │ ───▶ │  Student   │
+├─────────────────────┤      ├────────────────────┤      ├────────────┤
+│ CourseController    │ ───▶ │ CourseRepository   │ ───▶ │  Course    │
+└─────────────────────┘      └────────────────────┘      └────────────┘
+```
+
+> 💡 **Note:** If we have multiple tables, we create multiple repositories. But this can become too much! That's why we can create a **Generic Repository** for all tables (covered in advanced topics).
+
+---
+
+### 🛠️ Implementation Steps
+
+#### **Step 1: Create the Interface (Contract)**
+
+The interface defines WHAT operations the repository can do:
+
+📁 **Data/Repository/IStudentRepository.cs**
+
+```csharp
+namespace ASPNETCoreWebAPI.Data.Repository
+{
+    public interface IStudentRepository
+    {
+        Task<List<Student>> GetAllAsync();
+        Task<Student> GetByIdAsync(int id, bool useNoTracking = false);
+        Task<Student> GetByNameAsync(string name);
+        Task<int> CreateAsync(Student student);
+        Task<int> UpdateAsync(Student student);
+        Task<bool> DeleteAsync(Student student);
+    }
+}
+```
+
+**Key Points:**
+
+- Interface defines the contract (what methods are available)
+- All methods are async for better performance
+- `useNoTracking` parameter helps with update operations
+
+---
+
+#### **Step 2: Implement the Repository**
+
+The concrete class implements HOW the operations work:
+
+📁 **Data/Repository/StudentRepository.cs**
+
+```csharp
+namespace ASPNETCoreWebAPI.Data.Repository
+{
+    public class StudentRepository : IStudentRepository
+    {
+        private readonly CollegeDBContext _dbContext;
+
+        public StudentRepository(CollegeDBContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
+
+        public async Task<List<Student>> GetAllAsync()
+        {
+            return await _dbContext.Students.ToListAsync();
+        }
+
+        public async Task<Student> GetByIdAsync(int id, bool useNoTracking = false)
+        {
+            if (useNoTracking)
+                return await _dbContext.Students.AsNoTracking()
+                    .Where(s => s.Id == id).FirstOrDefaultAsync();
+            else
+                return await _dbContext.Students
+                    .Where(s => s.Id == id).FirstOrDefaultAsync();
+        }
+
+        public async Task<Student> GetByNameAsync(string name)
+        {
+            return await _dbContext.Students
+                .Where(s => s.StudentName.ToLower().Contains(name.ToLower()))
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<int> CreateAsync(Student student)
+        {
+            await _dbContext.Students.AddAsync(student);
+            await _dbContext.SaveChangesAsync();
+            return student.Id;
+        }
+
+        public async Task<int> UpdateAsync(Student student)
+        {
+            _dbContext.Update(student);
+            await _dbContext.SaveChangesAsync();
+            return student.Id;
+        }
+
+        public async Task<bool> DeleteAsync(Student student)
+        {
+            _dbContext.Students.Remove(student);
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+    }
+}
+```
+
+---
+
+#### **Step 3: Register in Dependency Injection**
+
+📁 **Program.cs**
+
+```csharp
+// Register repository
+builder.Services.AddScoped<IStudentRepository, StudentRepository>();
+```
+
+---
+
+#### **Step 4: Use Repository in Controller**
+
+📁 **Controllers/StudentController.cs**
+
+```csharp
+public class StudentController : ControllerBase
+{
+    private readonly IStudentRepository _studentRepository;
+    private readonly IMapper _mapper;
+
+    public StudentController(IMapper mapper, IStudentRepository studentRepository)
+    {
+        _mapper = mapper;
+        _studentRepository = studentRepository;
+    }
+
+    [HttpGet]
+    [Route("All")]
+    public async Task<ActionResult<IEnumerable<StudentDTO>>> GetStudentsAsync()
+    {
+        // Using repository instead of direct DbContext
+        var students = await _studentRepository.GetAllAsync();
+        var studentDTOData = _mapper.Map<List<StudentDTO>>(students);
+        return Ok(studentDTOData);
+    }
+
+    [HttpPost]
+    [Route("Create")]
+    public async Task<ActionResult<StudentDTO>> CreateStudentAsync([FromBody] StudentDTO dto)
+    {
+        if (dto == null)
+            return BadRequest();
+
+        Student student = _mapper.Map<Student>(dto);
+        var id = await _studentRepository.CreateAsync(student);
+        dto.Id = id;
+
+        return CreatedAtRoute("GetStudentById", new { id = dto.Id }, dto);
+    }
+}
+```
+
+---
+
+### 📁 Project Structure with Repository Pattern
+
+```
+ASPNETCoreWebAPI/
+├── Controllers/
+│   └── StudentController.cs    ◀── Uses IStudentRepository
+├── Data/
+│   ├── CollegeDBContext.cs     ◀── Database context
+│   ├── Student.cs              ◀── Entity model
+│   └── Repository/
+│       ├── IStudentRepository.cs   ◀── Interface (Contract)
+│       └── StudentRepository.cs    ◀── Implementation
+└── Program.cs                  ◀── DI Registration
+```
+
+---
+
+### 📊 Before vs After Repository Pattern
+
+| Without Repository                | With Repository                    |
+| --------------------------------- | ---------------------------------- |
+| Controller knows database details | Controller only knows interface    |
+| Hard to unit test                 | Easy to mock and test              |
+| Tight coupling                    | Loose coupling                     |
+| Duplicate DB code                 | Reusable repository methods        |
+| Change DB = Change controller     | Change DB = Only change repository |
+
+---
+
+### 🎯 Key Takeaways
+
+1. **Repository = Abstraction Layer** – Hides database details from controllers
+2. **Interface First** – Create `IStudentRepository` before implementation
+3. **Dependency Injection** – Register `<interface, implementation>` in Program.cs
+4. **Controller Uses Interface** – Inject `IStudentRepository`, not `StudentRepository`
+5. **All CRUD in Repository** – GetAll, GetById, Create, Update, Delete
+6. **Async Everything** – Use async methods for better performance
+
+> 💡 **Tip:** For multiple tables, consider creating a **Generic Repository** to avoid duplicate code!
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
 ## 🎉 Conclusion
 
 You've learned:
@@ -3239,6 +3511,7 @@ You've learned:
 - ✅ Serilog for advanced structured logging with file output
 - ✅ Entity Framework Core for database operations with Code First approach
 - ✅ AutoMapper for simplifying object mapping between entities and DTOs
+- ✅ Repository Design Pattern for abstracting data access layer
 
 **Happy Coding!** 🚀
 

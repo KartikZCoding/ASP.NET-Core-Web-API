@@ -1,5 +1,6 @@
 using ASPNETCoreWebAPI.Configurations;
 using ASPNETCoreWebAPI.Data;
+using ASPNETCoreWebAPI.Data.Repository;
 using ASPNETCoreWebAPI.MyLogging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IMyLogger, LogToMemoryServer>();
+builder.Services.AddScoped<IStudentRepository, StudentRepository>();
 
 //Log.Logger = new LoggerConfiguration()
 //    .MinimumLevel.Information()
