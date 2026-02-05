@@ -25,6 +25,7 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 17. [Built-in Logger in Web API](#17-built-in-logger-in-web-api)
 18. [Serilog – Advanced Logging](#18-serilog--advanced-logging)
 19. [Entity Framework Core](#19-entity-framework-core)
+20. [AutoMapper – Simplifying Object Mapping](#20-automapper--simplifying-object-mapping)
 
 ---
 
@@ -2953,6 +2954,267 @@ _dbContext.SaveChanges();               // Execute DELETE
 
 ---
 
+## 20. AutoMapper – Simplifying Object Mapping
+
+### 🤔 What is AutoMapper?
+
+**AutoMapper** is a library that helps you copy data from one object to another automatically. Instead of writing many lines of code to copy each property manually, AutoMapper does it for you in just one line!
+
+---
+
+### ❌ The Problem: Manual Object Mapping
+
+In our `StudentController`, we need to copy data from `Student` (database entity) to `StudentDTO` (what we send to client). Without AutoMapper, we had to write code like this:
+
+```csharp
+// ❌ Manual mapping - Too many lines!
+var studentDTO = new StudentDTO
+{
+    Id = student.Id,
+    StudentName = student.StudentName,
+    Email = student.Email,
+    Address = student.Address,
+    DOB = student.DOB
+};
+```
+
+> ⚠️ **Problem:** For every property, we write one line. If you have 20 properties, that's 20 lines! And if you have many controllers, this becomes very messy.
+
+---
+
+### ✅ The Solution: AutoMapper
+
+With AutoMapper, we replace all those lines with just **one line**:
+
+```csharp
+// ✅ With AutoMapper - Just one line!
+var studentDTO = _mapper.Map<StudentDTO>(student);
+```
+
+AutoMapper automatically copies all matching properties from `Student` to `StudentDTO`!
+
+---
+
+### 📦 Installing AutoMapper
+
+Add the AutoMapper NuGet package to your project:
+
+```xml
+<PackageReference Include="AutoMapper" Version="16.0.0" />
+```
+
+> 💡 **Note:** In AutoMapper 13+, the DI extension is included in the main package. No need to install `AutoMapper.Extensions.Microsoft.DependencyInjection` separately!
+
+---
+
+### ⚙️ Configuring AutoMapper
+
+#### **Step 1: Create a Profile Class**
+
+Create a configuration file that tells AutoMapper which classes to map:
+
+📁 **Configurations/AutoMapperConfig.cs**
+
+```csharp
+using ASPNETCoreWebAPI.Data;
+using ASPNETCoreWebAPI.Model;
+using AutoMapper;
+
+namespace ASPNETCoreWebAPI.Configurations
+{
+    public class AutoMapperConfig : Profile
+    {
+        public AutoMapperConfig()
+        {
+            // Basic mapping: StudentDTO <--> Student
+            CreateMap<StudentDTO, Student>().ReverseMap();
+        }
+    }
+}
+```
+
+**Key Points:**
+
+- `Profile` – Base class from AutoMapper for configuration
+- `CreateMap<Source, Destination>()` – Tells AutoMapper how to map
+- `ReverseMap()` – Creates mapping in both directions (Student → StudentDTO AND StudentDTO → Student)
+
+---
+
+#### **Step 2: Register AutoMapper in Program.cs**
+
+```csharp
+// AutoMapper 13+ syntax
+builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperConfig));
+```
+
+---
+
+### 🎮 Using AutoMapper in Controller
+
+#### **Step 1: Inject IMapper**
+
+```csharp
+public class StudentController : ControllerBase
+{
+    private readonly IMapper _mapper;
+    private readonly CollegeDBContext _dbContext;
+
+    public StudentController(CollegeDBContext collegeDBContext, IMapper mapper)
+    {
+        _dbContext = collegeDBContext;
+        _mapper = mapper;
+    }
+}
+```
+
+#### **Step 2: Use \_mapper.Map<T>() for Mapping**
+
+**Single Object Mapping:**
+
+```csharp
+// Get student from database
+var student = await _dbContext.Students.Where(s => s.Id == id).FirstOrDefaultAsync();
+
+// Map to DTO using AutoMapper
+var studentDTO = _mapper.Map<StudentDTO>(student);
+
+return Ok(studentDTO);
+```
+
+**List Mapping:**
+
+```csharp
+// Get all students from database
+var students = await _dbContext.Students.ToListAsync();
+
+// Map entire list to DTOs automatically!
+var studentDTOData = _mapper.Map<List<StudentDTO>>(students);
+
+return Ok(studentDTOData);
+```
+
+---
+
+### 🔄 Async Methods with Entity Framework Core
+
+When using AutoMapper with EF Core, always use **async methods** for better performance:
+
+| Sync Method        | Async Method            | Purpose           |
+| ------------------ | ----------------------- | ----------------- |
+| `ToList()`         | `ToListAsync()`         | Get all records   |
+| `FirstOrDefault()` | `FirstOrDefaultAsync()` | Get single record |
+| `Add()`            | `AddAsync()`            | Insert record     |
+| `SaveChanges()`    | `SaveChangesAsync()`    | Commit changes    |
+
+**Example:**
+
+```csharp
+[HttpGet]
+[Route("All", Name = "GetAllStudents")]
+public async Task<ActionResult<IEnumerable<StudentDTO>>> GetStudentsAsync()
+{
+    // Async database call
+    var students = await _dbContext.Students.ToListAsync();
+
+    // AutoMapper copies data
+    var studentDTOData = _mapper.Map<List<StudentDTO>>(students);
+
+    return Ok(studentDTOData);
+}
+```
+
+---
+
+### 🛠️ Advanced AutoMapper Features
+
+#### **1. Mapping Different Property Names**
+
+If your source and destination have different property names, use `ForMember`:
+
+```csharp
+// If StudentDTO has 'Name' but Student has 'StudentName'
+CreateMap<StudentDTO, Student>()
+    .ForMember(dest => dest.StudentName, opt => opt.MapFrom(src => src.Name))
+    .ReverseMap()
+    .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.StudentName));
+```
+
+---
+
+#### **2. Ignoring Properties**
+
+Sometimes you don't want to map certain properties:
+
+```csharp
+// Don't copy StudentName when mapping
+CreateMap<StudentDTO, Student>()
+    .ReverseMap()
+    .ForMember(dest => dest.StudentName, opt => opt.Ignore());
+```
+
+---
+
+#### **3. Transforming Property Values**
+
+You can transform values during mapping using `ForMember` with `MapFrom`:
+
+```csharp
+// If Address is empty, set default value
+CreateMap<StudentDTO, Student>()
+    .ReverseMap()
+    .ForMember(dest => dest.Address, opt => opt.MapFrom(src =>
+        string.IsNullOrEmpty(src.Address) ? "No address found" : src.Address));
+```
+
+---
+
+### 📁 Project Structure with AutoMapper
+
+```
+ASPNETCoreWebAPI/
+├── Configurations/
+│   └── AutoMapperConfig.cs     ◀── AutoMapper profile
+├── Controllers/
+│   └── StudentController.cs    ◀── Uses IMapper
+├── Data/
+│   └── Student.cs              ◀── Database entity
+├── Model/
+│   └── StudentDTO.cs           ◀── Data Transfer Object
+└── Program.cs                  ◀── AddAutoMapper registration
+```
+
+---
+
+### 📊 Before vs After AutoMapper
+
+| Without AutoMapper            | With AutoMapper              |
+| ----------------------------- | ---------------------------- |
+| 5-10 lines per mapping        | 1 line per mapping           |
+| Error-prone (miss properties) | Automatic & safe             |
+| Hard to maintain              | Easy to maintain             |
+| Repeated code everywhere      | Configure once, use anywhere |
+
+---
+
+### 🎯 Key Takeaways
+
+1. **Install AutoMapper** – Just the main package (v13+)
+2. **Create Profile** – Define mappings in a `Profile` class
+3. **Register in DI** – Use `AddAutoMapper()` in Program.cs
+4. **Inject IMapper** – Use constructor injection in controllers
+5. **Use Map<T>()** – Single line replaces manual copying
+6. **Advanced Features:**
+   - `ForMember()` – Map different property names
+   - `Ignore()` – Skip certain properties
+   - `MapFrom()` – Transform values during mapping
+
+> 💡 **Tip:** Always use async EF Core methods (`ToListAsync`, `FirstOrDefaultAsync`) with AutoMapper for better performance!
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
 ## 🎉 Conclusion
 
 You've learned:
@@ -2976,6 +3238,7 @@ You've learned:
 - ✅ Built-in logger and log levels in Web API
 - ✅ Serilog for advanced structured logging with file output
 - ✅ Entity Framework Core for database operations with Code First approach
+- ✅ AutoMapper for simplifying object mapping between entities and DTOs
 
 **Happy Coding!** 🚀
 

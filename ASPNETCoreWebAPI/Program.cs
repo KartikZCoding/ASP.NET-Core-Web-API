@@ -1,6 +1,8 @@
+using ASPNETCoreWebAPI.Configurations;
 using ASPNETCoreWebAPI.Data;
 using ASPNETCoreWebAPI.MyLogging;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -15,22 +17,23 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IMyLogger, LogToMemoryServer>();
 
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .WriteTo.File("Log/log.txt", rollingInterval: RollingInterval.Minute)
-    .CreateLogger();
+//Log.Logger = new LoggerConfiguration()
+//    .MinimumLevel.Information()
+//    .WriteTo.File("Log/log.txt", rollingInterval: RollingInterval.Minute)
+//    .CreateLogger();
 
 //use this line to override the built-in logger
 //builder.Host.UseSerilog();
 
 //use serilog along with built-in logger
-builder.Logging.AddSerilog();
+//builder.Logging.AddSerilog();
 
 builder.Services.AddDbContext<CollegeDBContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("CollegeAppDBConnection"));
 });
 
+builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperConfig));
 
 var app = builder.Build();
 
