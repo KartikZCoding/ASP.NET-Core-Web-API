@@ -1,0 +1,35 @@
+body {
+  font-family: Arial, sans-serif;
+}
+
+.container {
+  text-align: center;
+  margin-top: 40px;
+}
+
+button {
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+table {
+  margin: 20px auto;
+  border-collapse: collapse;
+  width: 80%;
+}
+
+th,
+td {
+  border: 1px solid #ccc;
+  padding: 8px;
+}
+
+th {
+  background-color: #f4f4f4;
+}
+
+.error {
+  color: red;
+  font-weight: bold;
+}
