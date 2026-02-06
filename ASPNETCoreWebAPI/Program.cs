@@ -43,6 +43,37 @@ builder.Services.AddDbContext<NorthwindContext>(options =>
 
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperConfig));
 
+//CORS
+builder.Services.AddCors(options =>
+{
+    //options.AddDefaultPolicy(policy =>
+    //{
+    //    policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+    //});
+
+    options.AddPolicy("AllowAll", policy =>
+    {
+        //for all origin
+        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+    });
+    options.AddPolicy("AllowOnlyLocalhost", policy =>
+    {
+        //for specific origin
+        policy.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod();
+    });
+    options.AddPolicy("AllowOnlyGoogle", policy =>
+    {
+        //for specific origin
+        policy.WithOrigins("http://google.com","http://gmail.com","http://drive.google.com").AllowAnyHeader().AllowAnyMethod();
+    });
+    options.AddPolicy("AllowOnlyMicrosoft", policy =>
+    {
+        //for specific origin
+        policy.WithOrigins("http://outlook.com","http://microsoft.com","http://onedrive.com").AllowAnyHeader().AllowAnyMethod();
+    });
+});
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -54,8 +85,22 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseRouting();
+
+app.UseCors("AllowAll");
 app.UseAuthorization();
 
-app.MapControllers();
+app.UseEndpoints(endpoits =>
+{
+    endpoits.MapGet("api/testingendpoint",
+        context => context.Response.WriteAsync("Test Response"))
+    .RequireCors("AllowOnlyLocalhost");
+
+    endpoits.MapControllers().RequireCors("AllowAll");
+
+    endpoits.MapGet("api/testingendpoint1",
+        context => context.Response.WriteAsync("Test Response 1"));
+});
+//app.MapControllers();
 
 app.Run();

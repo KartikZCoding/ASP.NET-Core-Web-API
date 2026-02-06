@@ -2,6 +2,7 @@
 using ASPNETCoreWebAPI.Data.Repository;
 using ASPNETCoreWebAPI.Model;
 using AutoMapper;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,9 @@ namespace ASPNETCoreWebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    //With the [EnableCors] attribute.
+    [EnableCors(PolicyName = "AllowOnlyLocalhost")]
+
     public class StudentController : ControllerBase
     {
         //common repository

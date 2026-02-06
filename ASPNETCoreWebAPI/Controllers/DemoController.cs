@@ -1,5 +1,6 @@
 ﻿using ASPNETCoreWebAPI.EFDBFirst;
 using ASPNETCoreWebAPI.MyLogging;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,6 +8,8 @@ namespace ASPNETCoreWebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    //With the [EnableCors] attribute.
+    [EnableCors(PolicyName = "AllowOnlyGoogle")]
     public class DemoController : ControllerBase
     {
         //EF DB First
@@ -40,6 +43,8 @@ namespace ASPNETCoreWebAPI.Controllers
         }
 
         [HttpGet("customers", Name = "GetCustomerData")]
+        //With the [DisableCors] attribute.
+        [DisableCors]
         public IEnumerable<dynamic> Get()
         {
             return _dbContext.Customers.ToList();
