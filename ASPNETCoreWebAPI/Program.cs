@@ -1,6 +1,7 @@
 using ASPNETCoreWebAPI.Configurations;
 using ASPNETCoreWebAPI.Data;
 using ASPNETCoreWebAPI.Data.Repository;
+using ASPNETCoreWebAPI.EFDBFirst;
 using ASPNETCoreWebAPI.MyLogging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,6 +35,10 @@ builder.Services.AddScoped(typeof(ICollegeRepository<>), typeof(CollegeRepositor
 builder.Services.AddDbContext<CollegeDBContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("CollegeAppDBConnection"));
+});
+builder.Services.AddDbContext<NorthwindContext>(options =>
+{
+    options.UseSqlServer(builder.Configuration.GetConnectionString("EFDBFirstDBConnection"));
 });
 
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperConfig));

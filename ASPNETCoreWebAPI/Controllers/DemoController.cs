@@ -1,4 +1,5 @@
-﻿using ASPNETCoreWebAPI.MyLogging;
+﻿using ASPNETCoreWebAPI.EFDBFirst;
+using ASPNETCoreWebAPI.MyLogging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,6 +9,9 @@ namespace ASPNETCoreWebAPI.Controllers
     [ApiController]
     public class DemoController : ControllerBase
     {
+        //EF DB First
+        private readonly NorthwindContext _dbContext;
+
         private readonly ILogger<DemoController> _logger;
         //1. strongly coupled/ tightly coupled
         //public DemoController()
@@ -16,12 +20,13 @@ namespace ASPNETCoreWebAPI.Controllers
         //}
 
         //2. loosely coupled
-        public DemoController(ILogger<DemoController> logger)
+        public DemoController(ILogger<DemoController> logger, NorthwindContext northwindContext)
         {
             _logger = logger;
+            _dbContext = northwindContext;
         }
 
-        [HttpGet]
+        [HttpGet("log")]
         public ActionResult Index()
         {
             _logger.LogTrace("Log message from trace method");
@@ -34,5 +39,10 @@ namespace ASPNETCoreWebAPI.Controllers
             return Ok();
         }
 
+        [HttpGet("customers", Name = "GetCustomerData")]
+        public IEnumerable<dynamic> Get()
+        {
+            return _dbContext.Customers.ToList();
+        }
     }
 }
