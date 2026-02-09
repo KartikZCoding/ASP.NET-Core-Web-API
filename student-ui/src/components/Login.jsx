@@ -18,7 +18,9 @@ function Login({ onLoginSuccess }) {
     setError("");
 
     try {
-      const response = await login(username, password);
+      // const response = await login("Micorosot", username, password); // for microsoft btn
+      // const response = await login("Google", username, password);
+      const response = await login("Local", username, password); // for get student btn
       console.log("Login response:", response);
 
       if (response && response.token) {

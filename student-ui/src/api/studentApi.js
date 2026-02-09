@@ -24,12 +24,17 @@ export const getToken = () => {
   );
 };
 
-export const login = async (username, password) => {
-  const response = await axios.post(LOGIN_URL, { username, password });
+export const login = async (policy, username, password) => {
+  const response = await axios.post(LOGIN_URL, { policy, username, password });
   return response.data;
 };
 
 export const getAllStudents = async () => {
   const response = await axios.get(`${STUDENT_URL}/All`);
+  return response.data;
+};
+
+export const callMicrosoft1 = async () => {
+  const response = await axios.get(`${API_BASE}/Microsoft`);
   return response.data;
 };
