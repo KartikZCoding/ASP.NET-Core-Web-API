@@ -3,9 +3,12 @@ using ASPNETCoreWebAPI.Data;
 using ASPNETCoreWebAPI.Data.Repository;
 using ASPNETCoreWebAPI.EFDBFirst;
 using ASPNETCoreWebAPI.MyLogging;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using System.Text;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +35,7 @@ builder.Services.AddScoped(typeof(ICollegeRepository<>), typeof(CollegeRepositor
 //use serilog along with built-in logger
 //builder.Logging.AddSerilog();
 
+//Database Connection string
 builder.Services.AddDbContext<CollegeDBContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("CollegeAppDBConnection"));
@@ -41,6 +45,7 @@ builder.Services.AddDbContext<NorthwindContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("EFDBFirstDBConnection"));
 });
 
+//AutoMapper
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperConfig));
 
 //CORS
@@ -73,6 +78,28 @@ builder.Services.AddCors(options =>
     });
 });
 
+var key = Encoding.ASCII.GetBytes(builder.Configuration.GetValue<string>("JWTSecret"));
+
+//Add Authentication Configuration
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(options =>
+{
+    //but make it false in production environment
+    //options.RequireHttpsMetadata = false;
+
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters()
+    {
+        // validate the signing key
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = false,
+        ValidateAudience =false
+    };
+});
 
 var app = builder.Build();
 
@@ -99,7 +126,8 @@ app.UseEndpoints(endpoits =>
     endpoits.MapControllers().RequireCors("AllowAll");
 
     endpoits.MapGet("api/testingendpoint1",
-        context => context.Response.WriteAsync("Test Response 1"));
+        context => context.Response.WriteAsync("Test response 1"));
+        //context => context.Response.WriteAsync(builder.Configuration.GetValue<string>("JWTSecret")));
 });
 //app.MapControllers();
 

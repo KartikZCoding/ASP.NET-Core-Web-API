@@ -2,6 +2,7 @@
 using ASPNETCoreWebAPI.Data.Repository;
 using ASPNETCoreWebAPI.Model;
 using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +15,7 @@ namespace ASPNETCoreWebAPI.Controllers
     [ApiController]
     //With the [EnableCors] attribute.
     [EnableCors(PolicyName = "AllowOnlyLocalhost")]
-
+    [Authorize(Roles = "Superadmin, Admin")]
     public class StudentController : ControllerBase
     {
         //common repository
@@ -40,6 +41,7 @@ namespace ASPNETCoreWebAPI.Controllers
         [HttpGet]
         [Route("All", Name = "GetAllStudents")]
         [ProducesResponseType(StatusCodes.Status200OK)]
+        //[AllowAnonymous]
         public async Task<ActionResult<IEnumerable<StudentDTO>>> GetStudentsAsync()
         {
             _logger.LogInformation("Get all the student.");

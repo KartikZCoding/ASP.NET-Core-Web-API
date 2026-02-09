@@ -34,6 +34,7 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 24. [CORS – Cross-Origin Resource Sharing](#24-cors--cross-origin-resource-sharing)
 25. [CORS Scenarios](#25-cors-scenarios)
 26. [Enabling CORS in Web API](#26-enabling-cors-in-web-api)
+27. [JWT – JSON Web Tokens](#27-jwt--json-web-tokens)
 
 ---
 
@@ -4971,6 +4972,476 @@ export const getAllStudents = async () => {
 
 ---
 
+## 27. JWT – JSON Web Tokens
+
+### 🔐 What is Authentication and Authorization?
+
+Before understanding JWT, let's understand two important security concepts:
+
+**Authentication** – The process of verifying the identity of a user or system. It answers: **"Who are you?"**
+
+**Authorization** – Defines what actions a user or system is allowed to perform. It answers: **"What can you do?"**
+
+---
+
+### 🏢 Real-World Example: College Web API
+
+Imagine a College Web API with multiple modules:
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                     COLLEGE WEB API                         │
+├────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐      │
+│   │   Student   │   │    Fees     │   │ Examination │      │
+│   │   Module    │   │   Module    │   │   Module    │      │
+│   └─────────────┘   └─────────────┘   └─────────────┘      │
+│                                                             │
+│   ┌─────────────┐                                          │
+│   │ Attendance  │                                          │
+│   │   Module    │                                          │
+│   └─────────────┘                                          │
+│                                                             │
+└────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────────┐
+│                      USER ACCESS                            │
+│                                                             │
+│  Step 1: Authentication (Prove your identity)              │
+│          ─────────────────────────────────────             │
+│          User provides: Username + Password                 │
+│          System verifies: "Yes, you are John"              │
+│                                                             │
+│  Step 2: Authorization (Check your permissions)            │
+│          ─────────────────────────────────────             │
+│          Based on Role: Admin, Student, Teacher            │
+│          System allows: Access to specific modules          │
+│                                                             │
+└────────────────────────────────────────────────────────────┘
+```
+
+**How it works:**
+
+1. User wants to access the API
+2. First, user proves identity (Authentication using **username + password**)
+3. Then, system checks what user can do (Authorization using **role**)
+4. User gets access to allowed modules only
+
+---
+
+### 🎫 What is JWT?
+
+**JWT (JSON Web Token)** is a popular mechanism for securing Web APIs by encoding information in a token that can be easily validated.
+
+> JWT is an open, industry-standard **RFC 7519** method for representing claims securely between two parties.
+
+**Key Points:**
+
+- JWT contains **base64 encoded data** passed to clients
+- It is **self-contained** – all user info is inside the token
+- It can be **validated** without database calls
+- It is **stateless** – server doesn't store session
+
+---
+
+### 🧩 JWT Structure – Three Parts
+
+Every JWT token has three parts separated by dots (`.`):
+
+```
+xxxxx.yyyyy.zzzzz
+  │      │      │
+  │      │      └── Signature (Blue)
+  │      └── Payload (Green)
+  └── Header (Red)
+```
+
+---
+
+#### 1️⃣ JWT Header
+
+The header contains information about the token itself:
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+| Field | Description                                    |
+| ----- | ---------------------------------------------- |
+| `alg` | Algorithm used to sign the token (e.g., HS256) |
+| `typ` | Type of token (always "JWT")                   |
+
+> 💡 The header is also known as the **JOSE header** (JSON Object Signing and Encryption).
+
+---
+
+#### 2️⃣ JWT Payload
+
+The payload contains the user data and claims:
+
+```json
+{
+  "id": "1234567",
+  "name": "John Doe",
+  "role": "admin"
+}
+```
+
+**Common Claims:**
+| Claim | Full Name | Description |
+|-------|-----------|-------------|
+| `sub` | Subject | Unique identifier for the user |
+| `name` | Name | User's display name |
+| `role` | Role | User's permission level |
+| `iat` | Issued At | When token was created |
+| `exp` | Expiration | When token expires |
+
+> 💡 No claims are mandatory, but specific claims have definite meanings.
+
+---
+
+#### 3️⃣ JWT Signature
+
+The signature ensures the token hasn't been tampered with:
+
+```
+HMACSHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),
+  <YourSecretKey>
+)
+```
+
+**Purpose of Signature:**
+
+- Allows parties to verify the **authenticity** of the JWT
+- Ensures data hasn't been **tampered with**
+- Created using the header, payload, and a **secret key**
+
+---
+
+### 🔄 How JWT Token is Generated
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    JWT TOKEN GENERATION PROCESS                   │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌─────────────┐              ┌─────────────────────────┐        │
+│  │   Header    │   ────────▶  │   base64UrlEncode()     │        │
+│  │  (JSON)     │              │   → base64Header        │        │
+│  └─────────────┘              └─────────────────────────┘        │
+│                                          │                        │
+│  ┌─────────────┐              ┌─────────────────────────┐        │
+│  │   Payload   │   ────────▶  │   base64UrlEncode()     │        │
+│  │  (JSON)     │              │   → base64Payload       │        │
+│  └─────────────┘              └─────────────────────────┘        │
+│                                          │                        │
+│                                          ▼                        │
+│              ┌───────────────────────────────────────┐           │
+│              │  base64Header + "." + base64Payload   │           │
+│              └───────────────────────────────────────┘           │
+│                                          │                        │
+│                                          ▼                        │
+│              ┌───────────────────────────────────────┐           │
+│              │  Sign with Algorithm + Secret Key     │           │
+│              │  (e.g., HMACSHA256)                   │           │
+│              └───────────────────────────────────────┘           │
+│                                          │                        │
+│                                          ▼                        │
+│              ┌───────────────────────────────────────┐           │
+│              │  base64UrlEncode(signature)           │           │
+│              │  → base64Signature                    │           │
+│              └───────────────────────────────────────┘           │
+│                                          │                        │
+│                                          ▼                        │
+│  ┌───────────────────────────────────────────────────────────┐   │
+│  │                      FINAL JWT TOKEN                       │   │
+│  │  base64Header.base64Payload.base64Signature               │   │
+│  └───────────────────────────────────────────────────────────┘   │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 📝 Example JWT Token
+
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+│                                      │                                                           │
+└──────────── Header (Red) ────────────┴────────────── Payload (Green) ────────────────────────────┴────── Signature (Blue) ─────┘
+```
+
+**Breaking it down:**
+| Part | Encoded Value | Decoded |
+|------|---------------|---------|
+| Header | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9` | `{"alg":"HS256","typ":"JWT"}` |
+| Payload | `eyJzdWIiOiIxMjM0...` | `{"sub":"123","name":"John","iat":1516239022}` |
+| Signature | `SflKxwRJSM...` | (Binary hash) |
+
+---
+
+### 🔢 JWT Algorithms
+
+Common algorithms used for signing JWT tokens:
+
+| JWA Spec | Algorithm                       | Description                      |
+| -------- | ------------------------------- | -------------------------------- |
+| HS256    | HMAC using SHA-256              | Symmetric key algorithm          |
+| RS256    | RSASSA PKCS1 v1.5 using SHA-256 | Asymmetric RSA algorithm         |
+| ES256    | ECDSA using P-256 and SHA-256   | Elliptic Curve algorithm         |
+| PS256    | RSASSA-PSS + MGF1 with SHA-256  | RSA with probabilistic signature |
+
+> 💡 These algorithms are available in 256, 384, and 512-bit formats (e.g., HS384, HS512).
+
+**Algorithm Full Forms:**
+
+| Short Form | Full Form                                  |
+| ---------- | ------------------------------------------ |
+| HMAC       | Keyed-Hash Message Authentication Code     |
+| RSA        | Rivest, Shamir, Adleman                    |
+| ECDSA      | Elliptic Curve Digital Signature Algorithm |
+| SHA        | Secure Hash Algorithm                      |
+| RSASSA     | RSA Signature Scheme with Appendix         |
+| PKCS       | Public-Key Cryptography Standards          |
+
+---
+
+### 🌐 JWT.IO – Online JWT Debugger
+
+[JWT.IO](https://jwt.io) is a helpful website to:
+
+- **Decode** JWT tokens to see header and payload
+- **Verify** signatures with your secret key
+- **Create** new JWT tokens for testing
+- **Debug** token issues quickly
+
+> 💡 Use jwt.io during development to understand and debug your tokens!
+
+---
+
+### 📋 Pre-requisites for JWT in ASP.NET Core
+
+Before implementing JWT authentication, you need:
+
+#### 1️⃣ NuGet Package
+
+Install the JWT Bearer authentication package:
+
+```xml
+<!-- ASPNETCoreWebAPI.csproj -->
+<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
+```
+
+Or install via Package Manager:
+
+```powershell
+Install-Package Microsoft.AspNetCore.Authentication.JwtBearer
+```
+
+---
+
+#### 2️⃣ Secret Key in Configuration
+
+Store your secret key securely in `appsettings.json`:
+
+```json
+// appsettings.json
+{
+  "JWTSecret": "This is secret key 3$%^&*()cauefuihUCHELAW HFE&&..."
+}
+```
+
+> ⚠️ **Important:** In production, use environment variables or Azure Key Vault for secrets!
+
+---
+
+#### 3️⃣ Authorize Attribute
+
+Use `[Authorize]` attribute to protect your controllers:
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+
+[Authorize]  // Requires any authenticated user
+public class StudentController : ControllerBase { }
+
+[Authorize(Roles = "Superadmin, Admin")]  // Requires specific roles
+public class StudentController : ControllerBase { }
+
+[AllowAnonymous]  // Allows unauthenticated access to specific action
+public async Task<ActionResult> PublicAction() { }
+```
+
+---
+
+### ⚙️ Configure Web API to Use JWT
+
+Here's how to configure JWT authentication in your Web API:
+
+**Program.cs – JWT Configuration:**
+
+```csharp
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Step 1: Read secret key from configuration
+var key = Encoding.ASCII.GetBytes(builder.Configuration.GetValue<string>("JWTSecret"));
+
+// Step 2: Add Authentication Configuration
+builder.Services.AddAuthentication(options =>
+{
+    // Set JWT Bearer as the default authentication scheme
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    // Save the token for later use
+    options.SaveToken = true;
+
+    // Configure token validation
+    options.TokenValidationParameters = new TokenValidationParameters()
+    {
+        // Validate the signing key
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+
+        // For simplicity, we're not validating issuer and audience
+        // In production, set these to true and configure valid values
+        ValidateIssuer = false,
+        ValidateAudience = false
+    };
+});
+
+var app = builder.Build();
+
+// ... other middleware
+
+app.UseRouting();
+app.UseCors("AllowAll");
+
+// IMPORTANT: Add UseAuthentication() before UseAuthorization()
+app.UseAuthentication();  // Validates JWT token
+app.UseAuthorization();   // Checks user permissions
+
+app.MapControllers();
+app.Run();
+```
+
+---
+
+### 🔒 Protecting Controllers with JWT
+
+**StudentController.cs – Using Authorize Attribute:**
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace ASPNETCoreWebAPI.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    [Authorize(Roles = "Superadmin, Admin")]  // 👈 Only these roles can access
+    public class StudentController : ControllerBase
+    {
+        [HttpGet]
+        [Route("All", Name = "GetAllStudents")]
+        public async Task<ActionResult<IEnumerable<StudentDTO>>> GetStudentsAsync()
+        {
+            // Only authenticated users with Superadmin or Admin role can access
+            var students = await _studentRepository.GetAllAsync();
+            return Ok(students);
+        }
+
+        [HttpGet]
+        [Route("Public")]
+        [AllowAnonymous]  // 👈 Anyone can access this endpoint
+        public ActionResult<string> GetPublicInfo()
+        {
+            return Ok("This is public information");
+        }
+    }
+}
+```
+
+---
+
+### 📊 JWT Authentication Flow
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    JWT AUTHENTICATION FLOW                        │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  1. LOGIN REQUEST                                                 │
+│  ─────────────────                                               │
+│  ┌────────┐         POST /api/login           ┌──────────────┐   │
+│  │ Client │  ──────────────────────────────▶  │   Web API    │   │
+│  │        │   { username, password }          │              │   │
+│  └────────┘                                   └──────────────┘   │
+│                                                                   │
+│  2. VALIDATE & GENERATE TOKEN                                     │
+│  ────────────────────────────                                    │
+│  ┌──────────────┐                                                │
+│  │   Web API    │  ① Verify username/password                    │
+│  │              │  ② Create JWT with user claims                 │
+│  │              │  ③ Sign with secret key                        │
+│  └──────────────┘                                                │
+│                                                                   │
+│  3. RETURN TOKEN                                                  │
+│  ───────────────                                                 │
+│  ┌──────────────┐    { "token": "eyJhbG..." }   ┌────────┐       │
+│  │   Web API    │  ──────────────────────────▶  │ Client │       │
+│  └──────────────┘                               └────────┘       │
+│                                                                   │
+│  4. API REQUEST WITH TOKEN                                        │
+│  ─────────────────────────                                       │
+│  ┌────────┐    GET /api/student/all            ┌──────────────┐  │
+│  │ Client │  ───────────────────────────────▶  │   Web API    │  │
+│  │        │   Authorization: Bearer eyJhbG...  │              │  │
+│  └────────┘                                    └──────────────┘  │
+│                                                                   │
+│  5. VALIDATE TOKEN & RETURN DATA                                  │
+│  ───────────────────────────────                                 │
+│  ┌──────────────┐  ① Decode JWT                                  │
+│  │   Web API    │  ② Verify signature                            │
+│  │              │  ③ Check expiration                            │
+│  │              │  ④ Validate role/claims                        │
+│  │              │  ⑤ Return data if valid                        │
+│  └──────────────┘                                                │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 🎯 Key Takeaways
+
+1. **Authentication vs Authorization** – Auth verifies WHO you are, Authorization checks WHAT you can do
+2. **JWT is self-contained** – All user info is encoded in the token itself
+3. **Three parts** – Header (algorithm), Payload (user data), Signature (verification)
+4. **Base64 encoded** – JWT is encoded, not encrypted (anyone can read the payload!)
+5. **Signature validates integrity** – Ensures token hasn't been tampered
+6. **Use `[Authorize]`** – Protect your endpoints with role-based authorization
+7. **Store secrets securely** – Never hardcode secrets in code, use configuration
+8. **Middleware order matters** – `UseAuthentication()` must come before `UseAuthorization()`
+
+> ⚠️ **Security Note:** JWT payload is only encoded (Base64), not encrypted. Never store sensitive data like passwords in the payload!
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
 ## 🎉 Conclusion
 
 You've learned:
@@ -5002,6 +5473,10 @@ You've learned:
 - ✅ CORS concepts and same-origin vs cross-origin understanding
 - ✅ CORS scenarios (Simple Request, Preflight Request, Credentials)
 - ✅ Multiple ways to enable CORS in ASP.NET Core Web API
+- ✅ JWT (JSON Web Tokens) for secure API authentication
+- ✅ JWT structure (Header, Payload, Signature) and token generation
+- ✅ JWT algorithms and how to configure JWT in ASP.NET Core
+- ✅ Protecting controllers with `[Authorize]` attribute
 
 **Happy Coding!** 🚀
 
