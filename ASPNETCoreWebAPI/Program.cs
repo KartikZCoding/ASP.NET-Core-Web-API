@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Serilog;
 using System.Text;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -18,7 +19,33 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().AddNewtonsoftJson();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the bearer scheme. Enter Bearer [space] add your token in the text inout. Example: Bearer $#&*@&DJHWWaihauhfu...",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Scheme = "Bearer"
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement()
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Id = "Bearer",
+                    Type = ReferenceType.SecurityScheme
+                },
+                Scheme = "oauth2",
+                Name = "Bearer",
+                In = ParameterLocation.Header
+            },
+            new List<string>()
+        }
+    }); 
+});
 
 builder.Services.AddScoped<IMyLogger, LogToMemoryServer>();
 builder.Services.AddScoped<IStudentRepository, StudentRepository>();
@@ -104,14 +131,20 @@ builder.Services.AddCors(options =>
 var keyGoogle = Encoding.ASCII.GetBytes(builder.Configuration.GetValue<string>("JWTSecretForGoogle"));
 var keyMicrosoft = Encoding.ASCII.GetBytes(builder.Configuration.GetValue<string>("JWTSecretForMicrosoft"));
 var keyLocal = Encoding.ASCII.GetBytes(builder.Configuration.GetValue<string>("JWTSecretForLocal"));
-
+string GoogleAudience = builder.Configuration.GetValue<string>("GoogleAudience");
+string MicrosoftAudience = builder.Configuration.GetValue<string>("MicrosoftAudience");
+string LocalAudience = builder.Configuration.GetValue<string>("LocalAudience");
+string GoogleIssuer = builder.Configuration.GetValue<string>("GoogleIssuer");
+string MicrosoftIssuer = builder.Configuration.GetValue<string>("MicrosoftIssuer");
+string LocalIssuer = builder.Configuration.GetValue<string>("LocalIssuer");
 
 //Add Authentication Configuration (Named)
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer("LoginForGoogleUsers", options =>
+})
+.AddJwtBearer("LoginForGoogleUsers", options =>
 {
     //but make it false in production environment
     //options.RequireHttpsMetadata = false;
@@ -122,10 +155,15 @@ builder.Services.AddAuthentication(options =>
         // validate the signing key
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(keyGoogle),
-        ValidateIssuer = false,
-        ValidateAudience = false
+
+        ValidateIssuer = true,
+        ValidIssuer = GoogleIssuer,
+
+        ValidateAudience = true,
+        ValidAudience = GoogleAudience,
     };
-}).AddJwtBearer("LoginForMicrosoftUsers", options =>
+})
+.AddJwtBearer("LoginForMicrosoftUsers", options =>
 {
     //but make it false in production environment
     //options.RequireHttpsMetadata = false;
@@ -136,10 +174,15 @@ builder.Services.AddAuthentication(options =>
         // validate the signing key
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(keyMicrosoft),
-        ValidateIssuer = false,
-        ValidateAudience = false
+
+        ValidateIssuer = true,
+        ValidIssuer = MicrosoftIssuer,
+
+        ValidateAudience = true,
+        ValidAudience = MicrosoftAudience,
     };
-}).AddJwtBearer("LoginForLocalUsers", options =>
+})
+.AddJwtBearer("LoginForLocalUsers", options =>
 {
     //but make it false in production environment
     //options.RequireHttpsMetadata = false;
@@ -150,8 +193,12 @@ builder.Services.AddAuthentication(options =>
         // validate the signing key
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(keyLocal),
-        ValidateIssuer = false,
-        ValidateAudience = false
+
+        ValidateIssuer = true,
+        ValidIssuer = LocalIssuer,
+
+        ValidateAudience = true,
+        ValidAudience = LocalAudience,
     };
 });
 

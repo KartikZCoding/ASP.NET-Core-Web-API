@@ -35,6 +35,8 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 25. [CORS Scenarios](#25-cors-scenarios)
 26. [Enabling CORS in Web API](#26-enabling-cors-in-web-api)
 27. [JWT – JSON Web Tokens](#27-jwt--json-web-tokens)
+28. [JWT Authentication in Swagger UI](#28-jwt-authentication-in-swagger-ui)
+29. [Why We Need Issuer & Audience in JWT](#29-why-we-need-issuer--audience-in-jwt)
 
 ---
 
@@ -6470,6 +6472,485 @@ const handleLogin = async () => {
 
 ---
 
+## 28. JWT Authentication in Swagger UI
+
+### 🤔 The Problem: Testing Protected Endpoints
+
+Once you add `[Authorize]` to your controllers, your API endpoints become **protected** — they require a valid JWT token in every request. But when you open **Swagger UI** to test your endpoints, there's no built-in way to provide a token. Every request to a protected endpoint returns **401 Unauthorized**.
+
+```
+Without Swagger JWT Setup:
+
+┌─────────────────────────┐          ┌──────────────────────┐
+│       Swagger UI        │          │      Web API         │
+│                         │          │                      │
+│  GET /api/student/all   │────────▶│  [Authorize]         │
+│  (No token!)            │          │  StudentController   │
+│                         │◀────────│                      │
+│  ❌ 401 Unauthorized    │          │  "Where is token?"   │
+└─────────────────────────┘          └──────────────────────┘
+```
+
+> ⚠️ **Problem:** You can't test protected API endpoints in Swagger without manually adding the `Authorization` header every time!
+
+---
+
+### ✅ The Solution: Configure Swagger for JWT
+
+We configure Swagger to show an **"Authorize" button** 🔒 at the top of the page. Once you click it and enter your JWT token, Swagger automatically adds the `Authorization: Bearer <token>` header to every request.
+
+```
+With Swagger JWT Setup:
+
+┌─────────────────────────┐          ┌──────────────────────┐
+│       Swagger UI        │          │      Web API         │
+│                         │          │                      │
+│  🔒 Authorize Button    │          │                      │
+│  ┌───────────────────┐  │          │                      │
+│  │ Bearer eyJhbG...  │  │          │                      │
+│  └───────────────────┘  │          │                      │
+│                         │          │                      │
+│  GET /api/student/all   │────────▶│  [Authorize]         │
+│  Authorization: Bearer  │          │  StudentController   │
+│  eyJhbG...              │          │                      │
+│                         │◀────────│                      │
+│  ✅ 200 OK              │          │  "Token valid!"      │
+└─────────────────────────┘          └──────────────────────┘
+```
+
+---
+
+### 📦 How It Works – Step by Step
+
+**Step 1:** Open Swagger UI → You see the 🔒 lock icon and **Authorize** button at the top
+
+**Step 2:** First, call `POST /api/Login` with your credentials to get a JWT token
+
+**Step 3:** Click the **Authorize** button → Enter `Bearer <your-token>`
+
+**Step 4:** Now all subsequent API requests automatically include the token in the `Authorization` header
+
+---
+
+### 🔧 Code Implementation in `Program.cs`
+
+To enable JWT authentication in Swagger, we need to configure **two things** inside `AddSwaggerGen`:
+
+#### 1️⃣ Security Definition – Tell Swagger about Bearer token
+
+```csharp
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the bearer scheme. Enter Bearer [space] add your token in the text input. Example: Bearer eyJhbG...",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Scheme = "Bearer"
+    });
+```
+
+| Property      | Description                                                           |
+| ------------- | --------------------------------------------------------------------- |
+| `"Bearer"`    | The name of the security scheme (used as a reference ID)              |
+| `Description` | Help text shown in the Authorize dialog explaining how to enter token |
+| `Name`        | The HTTP header name where the token goes (`Authorization`)           |
+| `In`          | Where to send the token — `ParameterLocation.Header`                  |
+| `Scheme`      | Authentication scheme type — `Bearer`                                 |
+
+#### 2️⃣ Security Requirement – Apply it globally to all endpoints
+
+```csharp
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement()
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Id = "Bearer",
+                    Type = ReferenceType.SecurityScheme
+                },
+                Scheme = "oauth2",
+                Name = "Bearer",
+                In = ParameterLocation.Header
+            },
+            new List<string>()
+        }
+    });
+});
+```
+
+| Property             | Description                                                    |
+| -------------------- | -------------------------------------------------------------- |
+| `Reference.Id`       | Must match the `"Bearer"` name used in `AddSecurityDefinition` |
+| `ReferenceType`      | Tells Swagger this is a `SecurityScheme` reference             |
+| `new List<string>()` | Empty list means no specific scopes are required               |
+
+> 💡 **`AddSecurityDefinition`** tells Swagger **what** the security scheme is. **`AddSecurityRequirement`** tells Swagger to **apply** it to all endpoints.
+
+---
+
+### 🧪 Testing Flow in Swagger
+
+```
+Step 1: Login to get token
+─────────────────────────
+POST /api/Login
+Body: { "policy": "Local", "username": "Kartik", "password": "Kartik@123" }
+Response: { "username": "Kartik", "token": "eyJhbGciOi..." }
+
+Step 2: Click Authorize button
+──────────────────────────────
+Enter: Bearer eyJhbGciOi...
+
+Step 3: Call protected endpoint
+───────────────────────────────
+GET /api/Student/All
+Header added automatically: Authorization: Bearer eyJhbGciOi...
+Response: ✅ 200 OK with student data
+```
+
+---
+
+### 💡 Key Points to Remember
+
+1. **`AddSecurityDefinition`** – Defines the Bearer token scheme in Swagger UI
+2. **`AddSecurityRequirement`** – Makes all endpoints require authentication by default
+3. **OpenApiSecurityScheme** – Configures how the token is passed (Header, Bearer scheme)
+4. **Authorize Button** – Appears in Swagger UI after configuration, allows entering the JWT token once
+5. **NuGet Package** – `Swashbuckle.AspNetCore` (included by default in ASP.NET Core Web API projects) handles all Swagger functionality
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
+## 29. Why We Need Issuer & Audience in JWT
+
+### 🤔 What Are Issuer and Audience?
+
+When a JWT token is created, it includes special claims that identify **who created the token** and **who should use the token**:
+
+| Claim     | Full Name | Description                                | Property in Code   |
+| --------- | --------- | ------------------------------------------ | ------------------ |
+| **`iss`** | Issuer    | Who is **generating** the JWT token        | `ValidateIssuer`   |
+| **`aud`** | Audience  | Who is **consuming** (using) the JWT token | `ValidateAudience` |
+
+> 🔑 **Think of it like a letter:** The **Issuer** is the sender's address, and the **Audience** is the recipient's address. Just like you validate that a letter came from the right person and was meant for you!
+
+---
+
+### 🏢 Scenario 1: Third-Party Issuer & Audience
+
+In real-world enterprise applications, the token generator and the token consumer are often **different systems**. A third-party identity provider (like Azure AD, Google, or Auth0) generates tokens that multiple applications can use.
+
+```
+                    THIRD-PARTY ISSUER & AUDIENCE SCENARIO
+
+  ┌────────────────────┐
+  │     Azure AD       │◀────── Third-Party Identity Provider
+  │  (Token Generator) │
+  │                    │
+  │  ISS: "AzureAD"   │
+  │  AUD: "NProviders" │
+  └────────┬───────────┘
+           │
+           │ Generates JWT token
+           │ (iss: AzureAD, aud: NProviders)
+           ▼
+  ┌────────────────────┐         ┌────────────────────┐
+  │    Weather API     │────────▶│     Web API        │
+  │  (Data Provider)   │  Data   │   "NProviders"     │
+  │                    │         │  (Token Consumer)  │
+  │  Validates Token:  │         │                    │
+  │  ✅ ISS = AzureAD  │         │  Validates Token:  │
+  │                    │         │  ✅ AUD = NProviders│
+  └────────────────────┘         └─────────┬──────────┘
+                                           │
+                                           │ Provides Data
+                                           ▼
+                                 ┌────────────────────┐
+                                 │    Angular App     │
+                                 │ (Displays Weather) │
+                                 └────────────────────┘
+```
+
+**How it works in Enterprise:**
+
+1. **Weather API** doesn't create tokens itself — it relies on **Azure AD** (a third-party identity provider) to generate JWT tokens
+2. Azure AD sets `iss: "AzureAD"` (it is the issuer) and `aud: "NProviders"` (the token is intended for NProviders)
+3. **Weather API validates the Issuer** — It checks that the token was actually created by Azure AD (a trusted source)
+4. **Web API (NProviders) validates the Audience** — It checks that the token was specifically meant for it
+5. The Web API then provides the data to the Angular App for display
+
+> 💡 **Why Third-Party?** In enterprise environments, you don't want every application to manage its own authentication. A centralized identity provider like Azure AD handles user authentication, and all applications trust the tokens it generates.
+
+---
+
+### 🏠 Scenario 2: Local Issuer & Audience (Our Approach)
+
+In simpler applications (like our College App), a **single application** does everything — it generates the token, provides the data, and consumes the token itself.
+
+```
+                     LOCAL ISSUER & AUDIENCE SCENARIO
+
+  ┌──────────────────────────────────────────────────┐
+  │              ❌ Azure AD (Not needed)              │
+  │              ❌ Weather API (Not needed)           │
+  └──────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────┐
+  │           OUR SINGLE WEB API APPLICATION          │
+  │                                                    │
+  │   ┌────────────────┐                               │
+  │   │ LoginController│ ◀── Token Generator (Issuer) │
+  │   │  POST /Login   │                               │
+  │   └───────┬────────┘                               │
+  │           │                                        │
+  │           │ Generates JWT Token                    │
+  │           │ (iss: "NehantWorld", aud: "Local")     │
+  │           ▼                                        │
+  │   ┌────────────────┐                               │
+  │   │StudentControllr│ ◀── Data Provider             │
+  │   │ GET /Students  │     & Token Consumer          │
+  │   │                │     (Audience)                │
+  │   │ Validates:     │                               │
+  │   │ ✅ ISS match   │                               │
+  │   │ ✅ AUD match   │                               │
+  │   └───────┬────────┘                               │
+  │           │                                        │
+  └───────────┼────────────────────────────────────────┘
+              │ Provides Data
+              ▼
+  ┌──────────────────────┐
+  │   Angular / React    │
+  │    Frontend App      │
+  │ (Displays Students)  │
+  └──────────────────────┘
+```
+
+**How it works in Our Application:**
+
+1. We are **NOT using** any third-party identity provider (❌ Azure AD, ❌ External Weather API)
+2. Our **single Web API application does everything**:
+   - **Token Generator (Issuer)** – `LoginController` creates the JWT token
+   - **Data Provider** – `StudentController` provides the student data
+   - **Token Consumer (Audience)** – The same application validates and consumes the token
+3. All our previous demos follow this **Local approach** where everything is in a single app
+
+> 🔒 **In this approach, we are everything** — we are the token generator (Issuer), data provider, and token consumer (Audience). No external services involved!
+
+---
+
+### ⚙️ Configuration in `appsettings.json`
+
+For each JWT policy, we define separate **Issuer**, **Audience**, and **Secret Key** values:
+
+```json
+{
+  "JWTSecretForGoogle": "GoogleThisissecretkey$%^&*()cauefuih...",
+  "JWTSecretForMicrosoft": "MicrosoftThisissecretkey$%^&*()cauefuih...",
+  "JWTSecretForLocal": "LocalThisissecretkey$%^&*()cauefuih...",
+
+  "GoogleAudience": "Google",
+  "MicrosoftAudience": "Microsoft",
+  "LocalAudience": "Local",
+
+  "GoogleIssuer": "GoogleAthentication",
+  "MicrosoftIssuer": "MicrosoftAAD",
+  "LocalIssuer": "NehantWorld"
+}
+```
+
+| Policy        | Issuer                | Audience    | Description                                |
+| ------------- | --------------------- | ----------- | ------------------------------------------ |
+| **Google**    | `GoogleAthentication` | `Google`    | For users authenticating via Google        |
+| **Microsoft** | `MicrosoftAAD`        | `Microsoft` | For users authenticating via Microsoft AAD |
+| **Local**     | `NehantWorld`         | `Local`     | For local application authentication       |
+
+---
+
+### 🔧 How Issuer & Audience Are Validated in `Program.cs`
+
+When configuring JWT authentication, we tell the application to **validate both the Issuer and Audience**:
+
+```csharp
+var keyLocal = Encoding.ASCII.GetBytes(builder.Configuration.GetValue<string>("JWTSecretForLocal"));
+string LocalAudience = builder.Configuration.GetValue<string>("LocalAudience");
+string LocalIssuer = builder.Configuration.GetValue<string>("LocalIssuer");
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer("LoginForLocalUsers", options =>
+{
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters()
+    {
+        // validate the signing key
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(keyLocal),
+
+        // ✅ Validate Issuer - check who generated the token
+        ValidateIssuer = true,
+        ValidIssuer = LocalIssuer,    // Must match "NehantWorld"
+
+        // ✅ Validate Audience - check who should consume the token
+        ValidateAudience = true,
+        ValidAudience = LocalAudience, // Must match "Local"
+    };
+});
+```
+
+| Parameter                  | Value           | What It Does                                        |
+| -------------------------- | --------------- | --------------------------------------------------- |
+| `ValidateIssuer = true`    | Enabled         | Checks the `iss` claim in the token                 |
+| `ValidIssuer`              | `"NehantWorld"` | Token must have `iss: "NehantWorld"` to be accepted |
+| `ValidateAudience = true`  | Enabled         | Checks the `aud` claim in the token                 |
+| `ValidAudience`            | `"Local"`       | Token must have `aud: "Local"` to be accepted       |
+| `ValidateIssuerSigningKey` | Enabled         | Verifies the token was signed with the correct key  |
+
+---
+
+### 🔑 How Issuer & Audience Are Set in the Token (`LoginController.cs`)
+
+When generating a token, the `LoginController` sets the **Issuer** and **Audience** based on the selected policy:
+
+```csharp
+[HttpPost]
+public ActionResult Login(LoginDTO model)
+{
+    string audience = string.Empty;
+    string issuer = string.Empty;
+    byte[] key = null;
+
+    if (model.Policy == "Local")
+    {
+        issuer = _configuration.GetValue<string>("LocalIssuer");       // "NehantWorld"
+        audience = _configuration.GetValue<string>("LocalAudience");   // "Local"
+        key = Encoding.ASCII.GetBytes(_configuration.GetValue<string>("JWTSecretForLocal"));
+    }
+    else if (model.Policy == "Microsoft")
+    {
+        issuer = _configuration.GetValue<string>("MicrosoftIssuer");   // "MicrosoftAAD"
+        audience = _configuration.GetValue<string>("MicrosoftAudience"); // "Microsoft"
+        key = Encoding.ASCII.GetBytes(_configuration.GetValue<string>("JWTSecretForMicrosoft"));
+    }
+    else if (model.Policy == "Google")
+    {
+        issuer = _configuration.GetValue<string>("GoogleIssuer");      // "GoogleAthentication"
+        audience = _configuration.GetValue<string>("GoogleAudience");  // "Google"
+        key = Encoding.ASCII.GetBytes(_configuration.GetValue<string>("JWTSecretForGoogle"));
+    }
+
+    // Token descriptor uses the selected issuer & audience
+    var tokenDescriptor = new SecurityTokenDescriptor()
+    {
+        Issuer = issuer,       // 👈 Sets the ISS claim
+        Audience = audience,   // 👈 Sets the AUD claim
+        Subject = new ClaimsIdentity(new Claim[]
+        {
+            new Claim(ClaimTypes.Name, model.Username),
+            new Claim(ClaimTypes.Role, "Admin")
+        }),
+        Expires = DateTime.Now.AddHours(4),
+        SigningCredentials = new(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha512Signature)
+    };
+
+    var token = tokenHandler.CreateToken(tokenDescriptor);
+    // ...
+}
+```
+
+---
+
+### 🔄 Complete Validation Flow
+
+```
+Step 1: User Logs In with Policy = "Local"
+──────────────────────────────────────────
+LoginController reads from appsettings.json:
+  Issuer = "NehantWorld"
+  Audience = "Local"
+  Key = "LocalThisissecretkey..."
+
+Step 2: Token is Generated
+──────────────────────────
+JWT Token contains:
+  iss: "NehantWorld"     ◀── Who created this token
+  aud: "Local"           ◀── Who should use this token
+  name: "Kartik"
+  role: "Admin"
+  exp: <4 hours from now>
+
+Step 3: User Calls Protected Endpoint
+──────────────────────────────────────
+GET /api/Student/All
+Authorization: Bearer eyJhbG...
+
+Step 4: Validation Happens
+──────────────────────────
+TokenValidationParameters checks:
+  ✅ ValidateIssuerSigningKey → Key matches "LocalThisissecretkey..."
+  ✅ ValidateIssuer → iss "NehantWorld" matches ValidIssuer
+  ✅ ValidateAudience → aud "Local" matches ValidAudience
+  ✅ Token not expired
+
+Result: 200 OK ✅
+```
+
+---
+
+### ❌ What Happens When Validation Fails?
+
+```
+Scenario: Token generated for "Local" but endpoint uses "Microsoft" policy
+────────────────────────────────────────────────────────────────────────────
+
+Token has:     iss: "NehantWorld",  aud: "Local"
+Endpoint expects: iss: "MicrosoftAAD", aud: "Microsoft"
+
+Validation:
+  ❌ ValidateIssuer → "NehantWorld" ≠ "MicrosoftAAD"  → FAIL!
+  ❌ ValidateAudience → "Local" ≠ "Microsoft"          → FAIL!
+
+Result: 401 Unauthorized ❌
+```
+
+> ⚠️ **Important:** Even if the username, password, and role are correct, the token will be **rejected** if the Issuer or Audience doesn't match. Each policy has its own Issuer, Audience, and Secret Key — they must all align.
+
+---
+
+### 📊 Comparison: With vs Without Issuer & Audience
+
+| Feature                     | Without (ValidateIssuer = false)       | With (ValidateIssuer = true)              |
+| --------------------------- | -------------------------------------- | ----------------------------------------- |
+| **Security**                | Lower — any issuer accepted            | Higher — only trusted issuers accepted    |
+| **Multi-Provider Support**  | ❌ Can't distinguish between providers | ✅ Each provider has its own identity     |
+| **Token Misuse Prevention** | ❌ Token from any source works         | ✅ Token must come from expected source   |
+| **Enterprise Ready**        | ❌ Not suitable                        | ✅ Supports Azure AD, Google, etc.        |
+| **Use Case**                | Simple, single-app testing             | Production, multi-provider authentication |
+
+---
+
+### 💡 Key Points to Remember
+
+1. **Issuer (`iss`)** – Identifies who generated/created the JWT token
+2. **Audience (`aud`)** – Identifies who should consume/use the JWT token
+3. **Third-Party Scenario** – External providers like Azure AD generate tokens for your app
+4. **Local Scenario** – Your single application is the issuer, provider, and consumer all in one
+5. **Validation** – Both `ValidateIssuer` and `ValidateAudience` should be `true` in production
+6. **Policy Matching** – A token generated for one policy (e.g., Local) won't work on another policy's endpoint (e.g., Microsoft)
+7. **Configuration** – Each policy needs its own `Issuer`, `Audience`, and `SecretKey` in `appsettings.json`
+
+> 🔒 **Security Best Practice:** Always enable `ValidateIssuer` and `ValidateAudience` in production environments. Setting them to `false` is only acceptable during early development or testing.
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
 ## 🎉 Conclusion
 
 You've learned:
@@ -6509,6 +6990,9 @@ You've learned:
 - ✅ Complete frontend-backend JWT authentication flow (React + Web API)
 - ✅ Multiple JWT authentication policies (Default vs Named)
 - ✅ Understanding 401 (Unauthorized) vs 403 (Forbidden) errors
+- ✅ JWT Authentication in Swagger UI with Authorize button
+- ✅ Why Issuer (iss) and Audience (aud) claims are essential in JWT
+- ✅ Third-Party vs Local Issuer & Audience scenarios
 
 **Happy Coding!** 🚀
 
