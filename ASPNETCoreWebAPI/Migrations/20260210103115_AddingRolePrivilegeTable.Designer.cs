@@ -4,6 +4,7 @@ using ASPNETCoreWebAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ASPNETCoreWebAPI.Migrations
 {
     [DbContext(typeof(CollegeDBContext))]
-    partial class CollegeDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260210103115_AddingRolePrivilegeTable")]
+    partial class AddingRolePrivilegeTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -126,8 +129,6 @@ namespace ASPNETCoreWebAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("RoleId");
-
                     b.ToTable("RolePrivileges", (string)null);
                 });
 
@@ -224,18 +225,6 @@ namespace ASPNETCoreWebAPI.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
-            modelBuilder.Entity("ASPNETCoreWebAPI.Data.RolePrivilege", b =>
-                {
-                    b.HasOne("ASPNETCoreWebAPI.Data.Role", "Role")
-                        .WithMany("RolePrivileges")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("FK_RolePrivileges_Roles");
-
-                    b.Navigation("Role");
-                });
-
             modelBuilder.Entity("ASPNETCoreWebAPI.Data.Student", b =>
                 {
                     b.HasOne("ASPNETCoreWebAPI.Data.Department", "Department")
@@ -249,11 +238,6 @@ namespace ASPNETCoreWebAPI.Migrations
             modelBuilder.Entity("ASPNETCoreWebAPI.Data.Department", b =>
                 {
                     b.Navigation("Students");
-                });
-
-            modelBuilder.Entity("ASPNETCoreWebAPI.Data.Role", b =>
-                {
-                    b.Navigation("RolePrivileges");
                 });
 #pragma warning restore 612, 618
         }

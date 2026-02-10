@@ -13,7 +13,7 @@ namespace ASPNETCoreWebAPI.Controllers
     public class DemoController : ControllerBase
     {
         //EF DB First
-        private readonly NorthwindContext _dbContext;
+        private readonly NorthwindCon _dbContext;
 
         private readonly ILogger<DemoController> _logger;
         //1. strongly coupled/ tightly coupled
@@ -23,7 +23,7 @@ namespace ASPNETCoreWebAPI.Controllers
         //}
 
         //2. loosely coupled
-        public DemoController(ILogger<DemoController> logger, NorthwindContext northwindContext)
+        public DemoController(ILogger<DemoController> logger, NorthwindCon northwindContext)
         {
             _logger = logger;
             _dbContext = northwindContext;

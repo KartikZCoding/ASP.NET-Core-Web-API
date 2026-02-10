@@ -38,6 +38,7 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 28. [JWT Authentication in Swagger UI](#28-jwt-authentication-in-swagger-ui)
 29. [Why We Need Issuer & Audience in JWT](#29-why-we-need-issuer--audience-in-jwt)
 30. [Common API Response](#30-common-api-response)
+31. [Role-Based Authentication – Database Setup](#31-role-based-authentication--database-setup)
 
 ---
 
@@ -7107,6 +7108,270 @@ Every endpoint in `StudentController` follows the **same try-catch pattern** wit
 
 ---
 
+## 31. Role-Based Authentication – Database Setup
+
+### 🤔 What is Role-Based Authentication?
+
+**Role-Based Access Control (RBAC)** is a security mechanism that restricts system access based on a user's assigned role. Instead of granting permissions to each user individually, you assign users to **roles** (like Admin, Customer, Company), and each role has specific **privileges** (like CanRead, CanWrite, CanDelete).
+
+```
+┌──────────┐      ┌──────────────┐      ┌───────────────────┐
+│   User   │─────▶│ UserRole     │─────▶│      Role         │
+│          │      │  Mapping     │      │                   │
+│  Kartik  │      │ UserId=1     │      │  Admin            │
+│  Aryan   │      │ RoleId=2     │      │  Customer         │
+└──────────┘      └──────────────┘      └─────────┬─────────┘
+                                                  │
+                                                  ▼
+                                        ┌───────────────────┐
+                                        │  RolePrivilege    │
+                                        │                   │
+                                        │  CanRead          │
+                                        │  CanWrite         │
+                                        │  CanDelete        │
+                                        └───────────────────┘
+```
+
+> 💡 **Why RBAC?** It makes managing access easier — instead of changing permissions for 100 users, just update the role once!
+
+---
+
+### 📁 Project Structure for Role-Based Tables
+
+```
+ASPNETCoreWebAPI/
+├── Data/
+│   ├── User.cs                      ◀── User entity
+│   ├── Role.cs                      ◀── Role entity
+│   ├── RolePrivilege.cs             ◀── Role privileges entity
+│   ├── UserRoleMapping.cs           ◀── User ↔ Role mapping
+│   └── Config/
+│       ├── UserConfig.cs            ◀── EF config for Users table
+│       ├── RoleConfig.cs            ◀── EF config for Roles table
+│       ├── RolePrivilegeConfig.cs   ◀── EF config + FK for RolePrivileges
+│       └── UserRoleMappingConfig.cs ◀── EF config for UserRoleMappings
+```
+
+---
+
+### 1️⃣ Create User Table
+
+The `User` entity stores login credentials and account status.
+
+**`Data/User.cs`**
+
+```csharp
+namespace ASPNETCoreWebAPI.Data
+{
+    public class User
+    {
+        public int Id { get; set; }
+        public string Username { get; set; }
+        public string Password { get; set; }
+        public string PasswordSalt { get; set; }
+        public int UserType { get; set; }
+        public bool IsActive { get; set; }
+        public bool IsDeleted { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime ModifiedDate { get; set; }
+    }
+}
+```
+
+**`Data/Config/UserConfig.cs`** – EF Fluent API configuration:
+
+```csharp
+public class UserConfig : IEntityTypeConfiguration<User>
+{
+    public void Configure(EntityTypeBuilder<User> builder)
+    {
+        builder.ToTable("Users");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityColumn();
+
+        builder.Property(x => x.Username).IsRequired();
+        builder.Property(x => x.Password).IsRequired();
+        builder.Property(x => x.PasswordSalt).IsRequired();
+        builder.Property(x => x.UserType).IsRequired();
+        builder.Property(x => x.IsActive).IsRequired();
+        builder.Property(x => x.IsDeleted).IsRequired();
+        builder.Property(x => x.CreatedDate).IsRequired();
+    }
+}
+```
+
+> 🔐 **PasswordSalt** is used to add random data to the password before hashing, making it harder to crack.
+
+**Migration Command:**
+
+```
+Add-Migration AddingUserTable -Context CollegeDBContext
+Update-Database -Context CollegeDBContext
+```
+
+---
+
+### 2️⃣ Create Role Table
+
+The `Role` entity defines different roles like Admin, Customer, Company.
+
+**`Data/Role.cs`**
+
+```csharp
+namespace ASPNETCoreWebAPI.Data
+{
+    public class Role
+    {
+        public int Id { get; set; }
+        public string RoleName { get; set; }
+        public string Description { get; set; }
+        public bool IsActive { get; set; }
+        public bool IsDeleted { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime ModifiedDate { get; set; }
+
+        // Navigation property – one Role has many RolePrivileges
+        public virtual ICollection<RolePrivilege> RolePrivileges { get; set; }
+    }
+}
+```
+
+**`Data/Config/RoleConfig.cs`** – EF Fluent API configuration:
+
+```csharp
+public class RoleConfig : IEntityTypeConfiguration<Role>
+{
+    public void Configure(EntityTypeBuilder<Role> builder)
+    {
+        builder.ToTable("Roles");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityColumn();
+
+        builder.Property(x => x.RoleName).IsRequired().HasMaxLength(250);
+        builder.Property(x => x.Description);
+        builder.Property(x => x.IsActive).IsRequired();
+        builder.Property(x => x.IsDeleted).IsRequired();
+        builder.Property(x => x.CreatedDate).IsRequired();
+    }
+}
+```
+
+> 📌 The `RolePrivileges` navigation property creates a **one-to-many** relationship — one Role can have many privileges.
+
+**Migration Command:**
+
+```
+Add-Migration AddingRoleTable -Context CollegeDBContext
+Update-Database -Context CollegeDBContext
+```
+
+---
+
+### 3️⃣ Create RolePrivilege Table
+
+The `RolePrivilege` entity defines what actions (privileges) each role can perform.
+
+**`Data/RolePrivilege.cs`**
+
+```csharp
+namespace ASPNETCoreWebAPI.Data
+{
+    public class RolePrivilege
+    {
+        public int Id { get; set; }
+        public string RolePrivilegeName { get; set; }
+        public string Description { get; set; }
+        public int RoleId { get; set; }      // FK to Role table
+        public bool IsActive { get; set; }
+        public bool IsDeleted { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime ModifiedDate { get; set; }
+
+        // Navigation property – each RolePrivilege belongs to one Role
+        public Role Role { get; set; }
+    }
+}
+```
+
+**Migration Command:**
+
+```
+Add-Migration AddingRolePrivilegeTable -Context CollegeDBContext
+Update-Database -Context CollegeDBContext
+```
+
+---
+
+### 4️⃣ Create RolePrivilege Foreign Key in EF Core
+
+The **Foreign Key** links the `RolePrivilege` table to the `Role` table using EF Fluent API.
+
+**`Data/Config/RolePrivilegeConfig.cs`**
+
+```csharp
+public class RolePrivilegeConfig : IEntityTypeConfiguration<RolePrivilege>
+{
+    public void Configure(EntityTypeBuilder<RolePrivilege> builder)
+    {
+        builder.ToTable("RolePrivileges");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityColumn();
+
+        builder.Property(x => x.RolePrivilegeName).IsRequired().HasMaxLength(250);
+        builder.Property(x => x.Description);
+        builder.Property(x => x.IsActive).IsRequired();
+        builder.Property(x => x.IsDeleted).IsRequired();
+        builder.Property(x => x.CreatedDate).IsRequired();
+
+        // 🔑 Foreign Key – RolePrivilege → Role
+        builder.HasOne(n => n.Role)
+            .WithMany(n => n.RolePrivileges)
+            .HasForeignKey(n => n.RoleId)
+            .HasConstraintName("FK_RolePrivileges_Roles");
+    }
+}
+```
+
+> 🔑 **How FK Works in EF Core:**
+>
+> - `HasOne(n => n.Role)` → Each RolePrivilege has **one** Role
+> - `.WithMany(n => n.RolePrivileges)` → Each Role has **many** RolePrivileges
+> - `.HasForeignKey(n => n.RoleId)` → Uses `RoleId` column as FK
+> - `.HasConstraintName(...)` → Names the FK constraint in the database
+
+**Migration Command:**
+
+```
+Add-Migration CreatingFKRolePrivilegeRole -Context CollegeDBContext
+Update-Database -Context CollegeDBContext
+```
+
+---
+
+### 🗄️ Database Tables After Migration
+
+| Table                | Purpose                            |
+| -------------------- | ---------------------------------- |
+| **Users**            | Stores user credentials & status   |
+| **Roles**            | Defines roles (Admin, Customer)    |
+| **RolePrivileges**   | Permissions assigned to each role  |
+| **UserRoleMappings** | Links users to their assigned role |
+
+---
+
+### 🎯 Key Takeaways
+
+1. **User table** – Stores username, hashed password with salt, and account status
+2. **Role table** – Defines roles with a navigation property to RolePrivileges
+3. **RolePrivilege table** – Stores per-role permissions with a FK to Role
+4. **Foreign Key in EF** – Use `HasOne().WithMany().HasForeignKey()` in Fluent API
+5. **Separate migrations** – Create each table in its own migration for clean history
+6. **Use `-Context`** – Specify the DbContext when multiple contexts exist
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
 ## 🎉 Conclusion
 
 You've learned:
@@ -7150,6 +7415,8 @@ You've learned:
 - ✅ Why Issuer (iss) and Audience (aud) claims are essential in JWT
 - ✅ Third-Party vs Local Issuer & Audience scenarios
 - ✅ Common API Response pattern for consistent, standard responses
+- ✅ Role-Based Authentication database setup (User, Role, RolePrivilege tables)
+- ✅ Foreign Key configuration in EF Core using Fluent API
 
 **Happy Coding!** 🚀
 

@@ -67,7 +67,7 @@ builder.Services.AddDbContext<CollegeDBContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("CollegeAppDBConnection"));
 });
-builder.Services.AddDbContext<NorthwindContext>(options =>
+builder.Services.AddDbContext<NorthwindCon>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("EFDBFirstDBConnection"));
 });

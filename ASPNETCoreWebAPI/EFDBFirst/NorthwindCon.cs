@@ -4,13 +4,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ASPNETCoreWebAPI.EFDBFirst;
 
-public partial class NorthwindContext : DbContext
+public partial class NorthwindCon : DbContext
 {
-    public NorthwindContext()
+    public NorthwindCon()
     {
     }
 
-    public NorthwindContext(DbContextOptions<NorthwindContext> options)
+    public NorthwindCon(DbContextOptions<NorthwindCon> options)
         : base(options)
     {
     }
