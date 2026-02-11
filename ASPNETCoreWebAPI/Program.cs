@@ -67,10 +67,10 @@ builder.Services.AddDbContext<CollegeDBContext>(options =>
 {
     options.UseSqlServer(builder.Configuration.GetConnectionString("CollegeAppDBConnection"));
 });
-builder.Services.AddDbContext<NorthwindCon>(options =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("EFDBFirstDBConnection"));
-});
+//builder.Services.AddDbContext<NorthwindCon>(options =>
+//{
+//    options.UseSqlServer(builder.Configuration.GetConnectionString("EFDBFirstDBConnection"));
+//});
 
 //AutoMapper
 builder.Services.AddAutoMapper(cfg => { }, typeof(AutoMapperConfig));

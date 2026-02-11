@@ -4,6 +4,7 @@ using ASPNETCoreWebAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ASPNETCoreWebAPI.Migrations
 {
     [DbContext(typeof(CollegeDBContext))]
-    partial class CollegeDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260211040842_AddingUserRoleMappingAndRelations")]
+    partial class AddingUserRoleMappingAndRelations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -212,7 +215,7 @@ namespace ASPNETCoreWebAPI.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("UserTypeId")
+                    b.Property<int>("UserType")
                         .HasColumnType("int");
 
                     b.Property<string>("Username")
@@ -220,8 +223,6 @@ namespace ASPNETCoreWebAPI.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("UserTypeId");
 
                     b.ToTable("Users", (string)null);
                 });
@@ -250,55 +251,6 @@ namespace ASPNETCoreWebAPI.Migrations
                     b.ToTable("UserRoleMappings", (string)null);
                 });
 
-            modelBuilder.Entity("ASPNETCoreWebAPI.Data.UserType", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1500)
-                        .HasColumnType("nvarchar(1500)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(250)
-                        .HasColumnType("nvarchar(250)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("UserTypes", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Description = "For Student",
-                            Name = "Student"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Description = "For Faculty",
-                            Name = "Faculty"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Description = "For Supporting Staff",
-                            Name = "Supporting Staff"
-                        },
-                        new
-                        {
-                            Id = 4,
-                            Description = "For Parents",
-                            Name = "Parents"
-                        });
-                });
-
             modelBuilder.Entity("ASPNETCoreWebAPI.Data.RolePrivilege", b =>
                 {
                     b.HasOne("ASPNETCoreWebAPI.Data.Role", "Role")
@@ -319,18 +271,6 @@ namespace ASPNETCoreWebAPI.Migrations
                         .HasConstraintName("FK_Student_Department");
 
                     b.Navigation("Department");
-                });
-
-            modelBuilder.Entity("ASPNETCoreWebAPI.Data.User", b =>
-                {
-                    b.HasOne("ASPNETCoreWebAPI.Data.UserType", "UserType")
-                        .WithMany("Users")
-                        .HasForeignKey("UserTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("FK_Users_UserType");
-
-                    b.Navigation("UserType");
                 });
 
             modelBuilder.Entity("ASPNETCoreWebAPI.Data.UserRoleMapping", b =>
@@ -369,11 +309,6 @@ namespace ASPNETCoreWebAPI.Migrations
             modelBuilder.Entity("ASPNETCoreWebAPI.Data.User", b =>
                 {
                     b.Navigation("UserRoleMappings");
-                });
-
-            modelBuilder.Entity("ASPNETCoreWebAPI.Data.UserType", b =>
-                {
-                    b.Navigation("Users");
                 });
 #pragma warning restore 612, 618
         }

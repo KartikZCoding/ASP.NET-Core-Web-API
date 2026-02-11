@@ -4,6 +4,7 @@ using ASPNETCoreWebAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ASPNETCoreWebAPI.Migrations
 {
     [DbContext(typeof(CollegeDBContext))]
-    partial class CollegeDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260211044128_AddingUserTypeTable")]
+    partial class AddingUserTypeTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -221,8 +224,6 @@ namespace ASPNETCoreWebAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserTypeId");
-
                     b.ToTable("Users", (string)null);
                 });
 
@@ -321,18 +322,6 @@ namespace ASPNETCoreWebAPI.Migrations
                     b.Navigation("Department");
                 });
 
-            modelBuilder.Entity("ASPNETCoreWebAPI.Data.User", b =>
-                {
-                    b.HasOne("ASPNETCoreWebAPI.Data.UserType", "UserType")
-                        .WithMany("Users")
-                        .HasForeignKey("UserTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("FK_Users_UserType");
-
-                    b.Navigation("UserType");
-                });
-
             modelBuilder.Entity("ASPNETCoreWebAPI.Data.UserRoleMapping", b =>
                 {
                     b.HasOne("ASPNETCoreWebAPI.Data.Role", "Role")
@@ -369,11 +358,6 @@ namespace ASPNETCoreWebAPI.Migrations
             modelBuilder.Entity("ASPNETCoreWebAPI.Data.User", b =>
                 {
                     b.Navigation("UserRoleMappings");
-                });
-
-            modelBuilder.Entity("ASPNETCoreWebAPI.Data.UserType", b =>
-                {
-                    b.Navigation("Users");
                 });
 #pragma warning restore 612, 618
         }
