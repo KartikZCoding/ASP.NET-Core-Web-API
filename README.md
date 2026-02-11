@@ -39,6 +39,13 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
 29. [Why We Need Issuer & Audience in JWT](#29-why-we-need-issuer--audience-in-jwt)
 30. [Common API Response](#30-common-api-response)
 31. [Role-Based Authentication – Database Setup](#31-role-based-authentication--database-setup)
+    31.1. [Creating User-Role Mapping in EF](#311-creating-user-role-mapping-in-ef)
+    31.2. [Creating UserType Table in EF](#312-creating-usertype-table-in-ef)
+    31.3. [Creating RoleDTO](#313-creating-roledto)
+    31.4. [Creating Role Creation Endpoint](#314-creating-role-creation-endpoint)
+    31.5. [Creating Role List Endpoint](#315-creating-role-list-endpoint)
+    31.6. [Creating Role Update Endpoint](#316-creating-role-update-endpoint)
+    31.7. [Creating Role Delete Endpoint](#317-creating-role-delete-endpoint)
 
 ---
 
@@ -7348,25 +7355,466 @@ Update-Database -Context CollegeDBContext
 
 ---
 
+### 5️⃣ Creating User-Role Mapping in EF
+
+The `UserRoleMapping` entity is a **junction table** that creates the **many-to-many** relationship between `User` and `Role`. A single user can have multiple roles, and a single role can be assigned to multiple users.
+
+```
+User (1) ──── (*) UserRoleMapping (*) ──── (1) Role
+                    │
+                    ├── UserId (FK → Users)
+                    └── RoleId (FK → Roles)
+```
+
+**`Data/UserRoleMapping.cs`**
+
+```csharp
+namespace ASPNETCoreWebAPI.Data
+{
+    public class UserRoleMapping
+    {
+        public int Id { get; set; }
+        public int UserId { get; set; }
+        public int RoleId { get; set; }
+
+        public User User { get; set; }
+        public Role Role { get; set; }
+    }
+}
+```
+
+> 📌 **Navigation properties** (`User` and `Role`) allow EF Core to load related entities using `.Include()`.
+
+**Add navigation property in `User.cs`:**
+
+```csharp
+public virtual ICollection<UserRoleMapping> UserRoleMappings { get; set; }
+```
+
+**Add navigation property in `Role.cs`:**
+
+```csharp
+public virtual ICollection<UserRoleMapping> UserRoleMappings { get; set; }
+```
+
+**`Data/Config/UserRoleMappingConfig.cs`** – EF Fluent API with **two Foreign Keys** and a **unique index**:
+
+```csharp
+public class UserRoleMappingConfig : IEntityTypeConfiguration<UserRoleMapping>
+{
+    public void Configure(EntityTypeBuilder<UserRoleMapping> builder)
+    {
+        builder.ToTable("UserRoleMappings");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityColumn();
+
+        // Unique index – a user can have each role only once
+        builder.HasIndex(n => new { n.UserId, n.RoleId }, "UK_UserRoleMapping").IsUnique();
+
+        builder.Property(n => n.UserId).IsRequired();
+        builder.Property(n => n.RoleId).IsRequired();
+
+        // FK → Role
+        builder.HasOne(n => n.Role)
+            .WithMany(n => n.UserRoleMappings)
+            .HasForeignKey(n => n.RoleId)
+            .HasConstraintName("FK_UserRoleMapping_Role");
+
+        // FK → User
+        builder.HasOne(n => n.User)
+            .WithMany(n => n.UserRoleMappings)
+            .HasForeignKey(n => n.UserId)
+            .HasConstraintName("FK_UserRoleMapping_User");
+    }
+}
+```
+
+> 🔑 **Key Points:**
+>
+> - `HasIndex(...).IsUnique()` – Prevents duplicate user-role assignments
+> - Two `HasOne().WithMany()` – Creates FK relationships to both `User` and `Role` tables
+> - Custom constraint names make the database schema more readable
+
+**Migration Command:**
+
+```
+Add-Migration AddingUserRoleMappingAndRelations -Context CollegeDBContext
+Update-Database -Context CollegeDBContext
+```
+
+---
+
+### 6️⃣ Creating UserType Table in EF
+
+The `UserType` entity categorizes users into groups like Student, Faculty, Supporting Staff, etc. Each `User` belongs to one `UserType`.
+
+```
+UserType (1) ──── (*) User
+   │
+   ├── Student
+   ├── Faculty
+   ├── Supporting Staff
+   └── Parents
+```
+
+**`Data/UserType.cs`**
+
+```csharp
+namespace ASPNETCoreWebAPI.Data
+{
+    public class UserType
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+
+        public virtual ICollection<User> Users { get; set; }
+    }
+}
+```
+
+**Add FK property and navigation property in `User.cs`:**
+
+```csharp
+public int UserTypeId { get; set; }
+public virtual UserType UserType { get; set; }
+```
+
+**`Data/Config/UserTypeConfig.cs`** – EF config with **seed data**:
+
+```csharp
+public class UserTypeConfig : IEntityTypeConfiguration<UserType>
+{
+    public void Configure(EntityTypeBuilder<UserType> builder)
+    {
+        builder.ToTable("UserTypes");
+
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityColumn();
+
+        builder.Property(x => x.Name).IsRequired().HasMaxLength(250);
+        builder.Property(x => x.Description).HasMaxLength(1500);
+
+        // Seed default user types
+        builder.HasData(new List<UserType>()
+        {
+            new UserType { Id = 1, Name = "Student", Description = "For Student" },
+            new UserType { Id = 2, Name = "Faculty", Description = "For Faculty" },
+            new UserType { Id = 3, Name = "Supporting Staff", Description = "For Supporting Staff" },
+            new UserType { Id = 4, Name = "Parents", Description = "For Parents" }
+        });
+    }
+}
+```
+
+**FK configuration in `UserConfig.cs`:**
+
+```csharp
+builder.HasOne(n => n.UserType)
+    .WithMany(n => n.Users)
+    .HasForeignKey(n => n.UserTypeId)
+    .HasConstraintName("FK_Users_UserType");
+```
+
+> 💡 **`HasData()`** seeds the `UserTypes` table with default values during migration — no manual insert needed!
+
+**Migration Commands:**
+
+```
+Add-Migration AddingUserTypeTable -Context CollegeDBContext
+Add-Migration AddingFK_Users_UserType -Context CollegeDBContext
+Update-Database -Context CollegeDBContext
+```
+
+---
+
+### 7️⃣ Creating RoleDTO
+
+The `RoleDTO` is a **Data Transfer Object** that exposes only the necessary fields for API clients. It hides internal fields like `IsDeleted`, `CreatedDate`, and `ModifiedDate` from the API response.
+
+```
+Role Entity (DB)              RoleDTO (API)
+┌─────────────────┐           ┌─────────────────┐
+│ Id              │──────────▶│ Id              │
+│ RoleName        │──────────▶│ RoleName ✅     │
+│ Description     │──────────▶│ Description     │
+│ IsActive        │──────────▶│ IsActive ✅     │
+│ IsDeleted       │    ✖      │                 │
+│ CreatedDate     │    ✖      │                 │
+│ ModifiedDate    │    ✖      │                 │
+└─────────────────┘           └─────────────────┘
+```
+
+**`Model/RoleDTO.cs`**
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace ASPNETCoreWebAPI.Model
+{
+    public class RoleDTO
+    {
+        public int Id { get; set; }
+        [Required]
+        public string RoleName { get; set; }
+        public string Description { get; set; }
+        [Required]
+        public bool IsActive { get; set; }
+    }
+}
+```
+
+> 📌 `[Required]` validation ensures `RoleName` and `IsActive` must be provided in the request body.
+
+**AutoMapper mapping in `AutoMapperConfig.cs`:**
+
+```csharp
+CreateMap<RoleDTO, Role>().ReverseMap();
+```
+
+> 💡 `.ReverseMap()` allows mapping in both directions — `RoleDTO → Role` for create/update and `Role → RoleDTO` for API responses.
+
+---
+
+### 8️⃣ Creating Role Creation Endpoint
+
+The **Create Role** endpoint accepts a `RoleDTO`, maps it to a `Role` entity, saves it to the database, and returns the created role.
+
+**`Controllers/RoleController.cs` – Setup:**
+
+```csharp
+[Route("api/[controller]")]
+[ApiController]
+public class RoleController : ControllerBase
+{
+    private readonly IMapper _mapper;
+    private readonly ICollegeRepository<Role> _roleRepository;
+    private APIResponse _apiResponse;
+
+    public RoleController(IMapper mapper, ICollegeRepository<Role> roleRepository)
+    {
+        _mapper = mapper;
+        _roleRepository = roleRepository;
+        _apiResponse = new();
+    }
+}
+```
+
+> 📌 Uses **Generic Repository** (`ICollegeRepository<Role>`) and **AutoMapper** — no direct DB calls needed!
+
+**Create Endpoint:**
+
+```csharp
+[HttpPost]
+[Route("Create")]
+[ProducesResponseType(StatusCodes.Status201Created)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> CreateRoleAsync(RoleDTO dto)
+{
+    try
+    {
+        if (dto == null)
+            return BadRequest();
+
+        Role role = _mapper.Map<Role>(dto);
+        role.IsDeleted = false;
+        role.CreatedDate = DateTime.Now;
+        role.ModifiedDate = DateTime.Now;
+
+        var result = await _roleRepository.CreateAsync(role);
+        dto.Id = result.Id;
+        _apiResponse.Data = dto;
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+
+        return CreatedAtRoute("GetRoleById", new { id = dto.Id }, _apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+> 🔑 **Key Points:**
+>
+> - `_mapper.Map<Role>(dto)` – Converts DTO to entity using AutoMapper
+> - Sets `IsDeleted = false` and timestamps **manually** (not exposed in DTO)
+> - `CreatedAtRoute` returns **201 Created** with the location header pointing to `GetRoleById`
+
+---
+
+### 9️⃣ Creating Role List Endpoint
+
+The **Get All Roles** endpoint fetches all roles from the database and maps them to DTOs.
+
+```csharp
+[HttpGet]
+[Route("All", Name = "GetAllRoles")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> GetRolesAsync()
+{
+    try
+    {
+        var roles = await _roleRepository.GetAllAsync();
+
+        _apiResponse.Data = _mapper.Map<List<RoleDTO>>(roles);
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+> 💡 `_mapper.Map<List<RoleDTO>>(roles)` maps the entire collection at once — AutoMapper handles the list mapping automatically.
+
+---
+
+### 🔟 Creating Role Update Endpoint
+
+The **Update Role** endpoint accepts a `RoleDTO`, checks if the role exists, and updates it.
+
+```csharp
+[HttpPut]
+[Route("Update")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> UpdateRoleAsync(RoleDTO dto)
+{
+    try
+    {
+        if (dto == null || dto.Id <= 0)
+            return BadRequest();
+
+        var existingRole = await _roleRepository.GetAsync(role => role.Id == dto.Id, true);
+
+        if (existingRole == null)
+            return BadRequest($"Role not found with id: {dto.Id} to update");
+
+        var newRole = _mapper.Map<Role>(dto);
+
+        await _roleRepository.UpdateAsync(newRole);
+
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+        _apiResponse.Data = newRole;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+> 🔑 **Key Points:**
+>
+> - First validates `dto.Id > 0` — prevents invalid update requests
+> - `GetAsync(..., true)` with tracking enabled — EF tracks the entity for update
+> - Maps DTO → Entity → Saves via the generic repository
+
+---
+
+### 1️⃣1️⃣ Creating Role Delete Endpoint
+
+The **Delete Role** endpoint takes an `id`, finds the role, and deletes it.
+
+```csharp
+[HttpDelete]
+[Route("Delete/{id:int}", Name = "DeleteRoleById")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> DeleteRoleAsync(int id)
+{
+    try
+    {
+        if (id <= 0)
+            return BadRequest();
+
+        var role = await _roleRepository.GetAsync(role => role.Id == id);
+
+        if (role == null)
+            return NotFound($"Role not found with id: {id} to delete");
+
+        await _roleRepository.DeleteAsync(role);
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+        _apiResponse.Data = true;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+> 📌 Returns `NotFound()` (404) if the role doesn't exist — follows REST best practices for delete operations.
+
+---
+
+### 📊 Role API Endpoints Summary
+
+| Endpoint                       | Method | Description       |
+| ------------------------------ | ------ | ----------------- |
+| `POST /api/role/Create`        | POST   | Create a new role |
+| `GET /api/role/All`            | GET    | Get all roles     |
+| `GET /api/role/{id}`           | GET    | Get role by ID    |
+| `GET /api/role/{name}`         | GET    | Get role by name  |
+| `PUT /api/role/Update`         | PUT    | Update a role     |
+| `DELETE /api/role/Delete/{id}` | DELETE | Delete a role     |
+
+---
+
 ### 🗄️ Database Tables After Migration
 
-| Table                | Purpose                            |
-| -------------------- | ---------------------------------- |
-| **Users**            | Stores user credentials & status   |
-| **Roles**            | Defines roles (Admin, Customer)    |
-| **RolePrivileges**   | Permissions assigned to each role  |
-| **UserRoleMappings** | Links users to their assigned role |
+| Table                | Purpose                                    |
+| -------------------- | ------------------------------------------ |
+| **Users**            | Stores user credentials & status           |
+| **UserTypes**        | Categorizes users (Student, Faculty, etc.) |
+| **Roles**            | Defines roles (Admin, Customer)            |
+| **RolePrivileges**   | Permissions assigned to each role          |
+| **UserRoleMappings** | Links users to their assigned roles (M:N)  |
 
 ---
 
 ### 🎯 Key Takeaways
 
 1. **User table** – Stores username, hashed password with salt, and account status
-2. **Role table** – Defines roles with a navigation property to RolePrivileges
+2. **Role table** – Defines roles with navigation properties to RolePrivileges and UserRoleMappings
 3. **RolePrivilege table** – Stores per-role permissions with a FK to Role
-4. **Foreign Key in EF** – Use `HasOne().WithMany().HasForeignKey()` in Fluent API
-5. **Separate migrations** – Create each table in its own migration for clean history
-6. **Use `-Context`** – Specify the DbContext when multiple contexts exist
+4. **UserRoleMapping table** – Junction table linking Users ↔ Roles with a unique index
+5. **UserType table** – Categorizes users with seed data using `HasData()`
+6. **RoleDTO** – Exposes only necessary fields; uses `[Required]` validation
+7. **AutoMapper** – `CreateMap<RoleDTO, Role>().ReverseMap()` for bidirectional mapping
+8. **CRUD Endpoints** – Create, Read (All/ById/ByName), Update, Delete using Generic Repository
+9. **Foreign Key in EF** – Use `HasOne().WithMany().HasForeignKey()` in Fluent API
+10. **Separate migrations** – Create each table in its own migration for clean history
+11. **Use `-Context`** – Specify the DbContext when multiple contexts exist
 
 ⬆️ [Back to Table of Contents](#-table-of-contents)
 
@@ -7417,6 +7865,10 @@ You've learned:
 - ✅ Common API Response pattern for consistent, standard responses
 - ✅ Role-Based Authentication database setup (User, Role, RolePrivilege tables)
 - ✅ Foreign Key configuration in EF Core using Fluent API
+- ✅ User-Role Mapping with junction table and unique index in EF Core
+- ✅ UserType table with seed data for user categorization
+- ✅ RoleDTO for secure, validated data transfer with AutoMapper
+- ✅ Full CRUD operations for Role management (Create, List, Update, Delete)
 
 **Happy Coding!** 🚀
 

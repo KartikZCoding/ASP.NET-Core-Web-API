@@ -24,6 +24,7 @@ namespace ASPNETCoreWebAPI.Configurations
             //CreateMap<StudentDTO, Student>().ReverseMap().ForMember(n => n.Address, opt => opt.MapFrom(n => string.IsNullOrEmpty(n.Address)? "no address found!": n.Address));
 
             CreateMap<StudentDTO, Student>().ReverseMap();
+            CreateMap<RoleDTO, Role>().ReverseMap();
         }
     }
 }
