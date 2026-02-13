@@ -90,6 +90,34 @@ namespace ASPNETCoreWebAPI.Controllers
         }
 
         [HttpGet]
+        [Route("AllRolePrivilegesById", Name = "GetAllRolePrivilegesById")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<ActionResult<APIResponse>> GetRoleRolePrivilegesByIdAsync(int roleId)
+        {
+            try
+            {
+                var rolePrivileges = await _rolePrivilegeRepository.GetAllByFilterAsync(rolePrivileges => rolePrivileges.RoleId == roleId);
+
+                _apiResponse.Data = _mapper.Map<List<RolePrivilegeDTO>>(rolePrivileges);
+                _apiResponse.Status = true;
+                _apiResponse.StatusCode = HttpStatusCode.OK;
+
+                return Ok(_apiResponse);
+            }
+            catch (Exception ex)
+            {
+                _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+                _apiResponse.Status = false;
+                _apiResponse.Errors.Add(ex.Message);
+                return _apiResponse;
+            }
+        }
+
+        [HttpGet]
         [Route("{id:int}", Name = "GetRolePrivilegeById")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -177,13 +205,13 @@ namespace ASPNETCoreWebAPI.Controllers
                 if (existingRolePrivilege == null)
                     return BadRequest($"Role not found with id: {dto.Id} to update");
 
-                var newRole = _mapper.Map<RolePrivilege>(dto);
+                var newRolePrivilege = _mapper.Map<RolePrivilege>(dto);
 
-                await _rolePrivilegeRepository.UpdateAsync(newRole);
+                await _rolePrivilegeRepository.UpdateAsync(newRolePrivilege);
 
                 _apiResponse.Status = true;
                 _apiResponse.StatusCode = HttpStatusCode.OK;
-                _apiResponse.Data = newRole;
+                _apiResponse.Data = newRolePrivilege;
 
                 return Ok(_apiResponse);
 

@@ -34,6 +34,14 @@ namespace ASPNETCoreWebAPI.Data.Repository
             return await _dbset.ToListAsync();
         }
 
+        public async Task<List<T>> GetAllByFilterAsync(Expression<Func<T, bool>> filter, bool useNoTracking = false)
+        {
+            if (useNoTracking)
+                return await _dbset.AsNoTracking().Where(filter).ToListAsync();
+            else
+                return await _dbset.Where(filter).ToListAsync();
+        }
+
         public async Task<T> GetAsync(Expression<Func<T, bool>> filter, bool useNoTracking = false)
         {
             if (useNoTracking)

@@ -46,6 +46,14 @@ A comprehensive guide to understanding Web APIs, their evolution, and practical 
     31.5. [Creating Role List Endpoint](#315-creating-role-list-endpoint)
     31.6. [Creating Role Update Endpoint](#316-creating-role-update-endpoint)
     31.7. [Creating Role Delete Endpoint](#317-creating-role-delete-endpoint)
+32. [Role Privilege CRUD – Managing Permissions per Role](#32-role-privilege-crud--managing-permissions-per-role)
+    32.1. [RolePrivilege Entity & DTO](#321-roleprivilege-entity--dto)
+    32.2. [Creating RolePrivilege Endpoint](#322-creating-roleprivilege-endpoint)
+    32.3. [Getting All RolePrivileges](#323-getting-all-roleprivileges)
+    32.4. [Getting RolePrivileges by RoleId](#324-getting-roleprivileges-by-roleid)
+    32.5. [Getting RolePrivilege by Id & Name](#325-getting-roleprivilege-by-id--name)
+    32.6. [Updating a RolePrivilege](#326-updating-a-roleprivilege)
+    32.7. [Deleting a RolePrivilege](#327-deleting-a-roleprivilege)
 
 ---
 
@@ -7815,6 +7823,391 @@ public async Task<ActionResult<APIResponse>> DeleteRoleAsync(int id)
 9. **Foreign Key in EF** – Use `HasOne().WithMany().HasForeignKey()` in Fluent API
 10. **Separate migrations** – Create each table in its own migration for clean history
 11. **Use `-Context`** – Specify the DbContext when multiple contexts exist
+12. **RolePrivilege CRUD** – Full CRUD for permissions using the same Generic Repository pattern
+13. **Filter by RoleId** – `GetAllByFilterAsync()` with a lambda to fetch privileges per role
+
+⬆️ [Back to Table of Contents](#-table-of-contents)
+
+---
+
+## 32. Role Privilege CRUD – Managing Permissions per Role
+
+After creating the **Role** table and its CRUD endpoints, the next step in a role-based authentication system is to manage **Role Privileges** — the specific permissions that each role is allowed to perform. For example, an "Admin" role might have privileges like "Create User", "Delete User", and "View Reports", while a "Customer" role might only have "View Orders" and "Edit Profile".
+
+Role Privileges answer the question: **"What is this role allowed to do?"**
+
+> 💡 **Why separate privileges from roles?**
+>
+> Storing permissions in a separate `RolePrivilege` table (instead of hard-coding them into the role) makes the system **flexible and maintainable**. You can add, remove, or update permissions at runtime without redeploying the application.
+
+```
+┌──────────────┐        1 : N        ┌───────────────────┐
+│    Role      │ ◀──────────────────▶ │  RolePrivilege    │
+│              │                      │                   │
+│  Id          │                      │  Id               │
+│  RoleName    │                      │  RolePrivilegeName│
+│  Description │                      │  Description      │
+│  IsActive    │                      │  RoleId (FK)      │
+└──────────────┘                      │  IsActive         │
+                                      │  IsDeleted        │
+                                      │  CreatedDate      │
+                                      │  ModifiedDate     │
+                                      └───────────────────┘
+```
+
+---
+
+### 3️⃣2️⃣.1️⃣ RolePrivilege Entity & DTO
+
+The **RolePrivilege** entity maps directly to the `RolePrivileges` database table and contains a **foreign key** (`RoleId`) pointing to the `Role` table.
+
+**RolePrivilege.cs (Entity):**
+
+```csharp
+namespace ASPNETCoreWebAPI.Data
+{
+    public class RolePrivilege
+    {
+        public int Id { get; set; }
+        public string RolePrivilegeName { get; set; }
+        public string Description { get; set; }
+        public int RoleId { get; set; }       // FK → Role table
+        public bool IsActive { get; set; }
+        public bool IsDeleted { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime ModifiedDate { get; set; }
+
+        public Role Role { get; set; }        // Navigation property
+    }
+}
+```
+
+**RolePrivilegeDTO.cs (Data Transfer Object):**
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace ASPNETCoreWebAPI.Model
+{
+    public class RolePrivilegeDTO
+    {
+        public int Id { get; set; }
+        [Required]
+        public string RolePrivilegeName { get; set; }
+        public string Description { get; set; }
+        public int RoleId { get; set; }
+        [Required]
+        public bool IsActive { get; set; }
+    }
+}
+```
+
+> 🔑 Notice the DTO **hides** `IsDeleted`, `CreatedDate`, and `ModifiedDate` from API consumers — these are managed internally by the server.
+
+---
+
+### 3️⃣2️⃣.2️⃣ Creating RolePrivilege Endpoint
+
+The **Create** endpoint accepts a `RolePrivilegeDTO`, maps it to the entity, sets audit fields (`CreatedDate`, `ModifiedDate`, `IsDeleted`), and saves it via the Generic Repository.
+
+```csharp
+[HttpPost]
+[Route("Create")]
+[ProducesResponseType(StatusCodes.Status201Created)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> CreateRolePrivilegeAsync(RolePrivilegeDTO dto)
+{
+    try
+    {
+        if (dto == null)
+            return BadRequest();
+
+        RolePrivilege rolePrivilege = _mapper.Map<RolePrivilege>(dto);
+        rolePrivilege.IsDeleted = false;
+        rolePrivilege.CreatedDate = DateTime.Now;
+        rolePrivilege.ModifiedDate = DateTime.Now;
+
+        var result = await _rolePrivilegeRepository.CreateAsync(rolePrivilege);
+        dto.Id = result.Id;
+        _apiResponse.Data = dto;
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+> 📌 The server **auto-sets** `IsDeleted = false`, `CreatedDate`, and `ModifiedDate` — the client never controls these fields.
+
+---
+
+### 3️⃣2️⃣.3️⃣ Getting All RolePrivileges
+
+This endpoint returns **every** role privilege record from the database.
+
+```csharp
+[HttpGet]
+[Route("All", Name = "GetAllRolePrivileges")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> GetRolesAsync()
+{
+    try
+    {
+        var roles = await _rolePrivilegeRepository.GetAllAsync();
+
+        _apiResponse.Data = _mapper.Map<List<RolePrivilegeDTO>>(roles);
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+---
+
+### 3️⃣2️⃣.4️⃣ Getting RolePrivileges by RoleId
+
+This is one of the most **important** endpoints in a role-based system. Instead of fetching all privileges, it filters by `RoleId` — so you can answer: _"What permissions does Role X have?"_
+
+It uses the Generic Repository's `GetAllByFilterAsync()` method and passes a lambda expression to filter records where `RoleId` matches the given value.
+
+```csharp
+[HttpGet]
+[Route("AllRolePrivilegesById", Name = "GetAllRolePrivilegesById")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> GetRoleRolePrivilegesByIdAsync(int roleId)
+{
+    try
+    {
+        var rolePrivileges = await _rolePrivilegeRepository
+            .GetAllByFilterAsync(rp => rp.RoleId == roleId);
+
+        _apiResponse.Data = _mapper.Map<List<RolePrivilegeDTO>>(rolePrivileges);
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+> 🔑 **Key Insight:** `GetAllByFilterAsync(rp => rp.RoleId == roleId)` translates to SQL: `SELECT * FROM RolePrivileges WHERE RoleId = @roleId`. This is how EF Core converts LINQ lambda expressions into efficient database queries.
+
+---
+
+### 3️⃣2️⃣.5️⃣ Getting RolePrivilege by Id & Name
+
+**Get by ID** — fetch a single privilege by its primary key:
+
+```csharp
+[HttpGet]
+[Route("{id:int}", Name = "GetRolePrivilegeById")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+public async Task<ActionResult<APIResponse>> GetRolesAsync(int id)
+{
+    try
+    {
+        if (id <= 0)
+            return BadRequest();
+
+        var role = await _rolePrivilegeRepository.GetAsync(role => role.Id == id);
+        if (role == null)
+            return NotFound($"The role privilege with id {id} not found!.");
+
+        _apiResponse.Data = _mapper.Map<RolePrivilegeDTO>(role);
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.Errors.Add(ex.Message);
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        return _apiResponse;
+    }
+}
+```
+
+**Get by Name** — search for a privilege using a partial name match:
+
+```csharp
+[HttpGet]
+[Route("{name:alpha}", Name = "GetRolePrivilegeByName")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+public async Task<ActionResult<APIResponse>> GetRolesAsync(string name)
+{
+    try
+    {
+        if (string.IsNullOrEmpty(name))
+            return BadRequest();
+
+        var rolePrivilege = await _rolePrivilegeRepository
+            .GetAsync(rp => rp.RolePrivilegeName.ToLower().Contains(name.ToLower()));
+
+        if (rolePrivilege == null)
+            return NotFound($"The role privilege not found with name: {name}");
+
+        _apiResponse.Data = _mapper.Map<RolePrivilegeDTO>(rolePrivilege);
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+> 💡 The `{name:alpha}` route constraint ensures ASP.NET Core only matches alphabetic strings, avoiding conflicts with the `{id:int}` route.
+
+---
+
+### 3️⃣2️⃣.6️⃣ Updating a RolePrivilege
+
+The **Update** endpoint finds the existing record (with tracking enabled), maps the new values, and saves.
+
+```csharp
+[HttpPut]
+[Route("Update")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> UpdateRoleAsync(RolePrivilegeDTO dto)
+{
+    try
+    {
+        if (dto == null || dto.Id <= 0)
+            return BadRequest();
+
+        var existingRolePrivilege = await _rolePrivilegeRepository
+            .GetAsync(rp => rp.Id == dto.Id, true);
+
+        if (existingRolePrivilege == null)
+            return BadRequest($"Role privilege not found with id: {dto.Id} to update");
+
+        var newRolePrivilege = _mapper.Map<RolePrivilege>(dto);
+
+        await _rolePrivilegeRepository.UpdateAsync(newRolePrivilege);
+
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+        _apiResponse.Data = newRolePrivilege;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+> 🔑 `GetAsync(..., true)` passes `true` for the tracking parameter so EF Core detaches the old entity before attaching the updated one — prevents "entity with same key already tracked" errors.
+
+---
+
+### 3️⃣2️⃣.7️⃣ Deleting a RolePrivilege
+
+The **Delete** endpoint validates the ID, looks up the record, returns 404 if not found, and then removes it.
+
+```csharp
+[HttpDelete]
+[Route("Delete/{id:int}", Name = "DeleteRolePrivilegeById")]
+[ProducesResponseType(StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+[ProducesResponseType(StatusCodes.Status500InternalServerError)]
+public async Task<ActionResult<APIResponse>> DeleteRoleAsync(int id)
+{
+    try
+    {
+        if (id <= 0)
+            return BadRequest();
+
+        var rolePrivilege = await _rolePrivilegeRepository
+            .GetAsync(rp => rp.Id == id);
+
+        if (rolePrivilege == null)
+            return NotFound($"Role privilege not found with id: {id} to delete");
+
+        await _rolePrivilegeRepository.DeleteAsync(rolePrivilege);
+        _apiResponse.Status = true;
+        _apiResponse.StatusCode = HttpStatusCode.OK;
+        _apiResponse.Data = true;
+
+        return Ok(_apiResponse);
+    }
+    catch (Exception ex)
+    {
+        _apiResponse.StatusCode = HttpStatusCode.InternalServerError;
+        _apiResponse.Status = false;
+        _apiResponse.Errors.Add(ex.Message);
+        return _apiResponse;
+    }
+}
+```
+
+---
+
+### 📊 RolePrivilege API Endpoints Summary
+
+| Endpoint                                                | Method | Description                            |
+| ------------------------------------------------------- | ------ | -------------------------------------- |
+| `POST /api/roleprivilege/Create`                        | POST   | Create a new role privilege            |
+| `GET /api/roleprivilege/All`                            | GET    | Get all role privileges                |
+| `GET /api/roleprivilege/AllRolePrivilegesById?roleId=1` | GET    | Get all privileges for a specific role |
+| `GET /api/roleprivilege/{id}`                           | GET    | Get role privilege by ID               |
+| `GET /api/roleprivilege/{name}`                         | GET    | Get role privilege by name             |
+| `PUT /api/roleprivilege/Update`                         | PUT    | Update a role privilege                |
+| `DELETE /api/roleprivilege/Delete/{id}`                 | DELETE | Delete a role privilege                |
+
+---
+
+### 🎯 Key Takeaways
+
+1. **RolePrivilege entity** has a FK (`RoleId`) to the `Role` table — one role can have many privileges
+2. **RolePrivilegeDTO** hides internal fields (`IsDeleted`, `CreatedDate`, `ModifiedDate`) from consumers
+3. **GetAllByFilterAsync** with a lambda (`rp => rp.RoleId == roleId`) lets you query privileges per role
+4. **Same Generic Repository** — `ICollegeRepository<RolePrivilege>` reuses the existing pattern, no new repository needed
+5. **Route constraints** (`{id:int}`, `{name:alpha}`) prevent routing conflicts between Id-based and Name-based GET endpoints
+6. **Audit fields** — `CreatedDate` and `ModifiedDate` are set server-side, never exposed to clients
 
 ⬆️ [Back to Table of Contents](#-table-of-contents)
 
@@ -7869,6 +8262,8 @@ You've learned:
 - ✅ UserType table with seed data for user categorization
 - ✅ RoleDTO for secure, validated data transfer with AutoMapper
 - ✅ Full CRUD operations for Role management (Create, List, Update, Delete)
+- ✅ Role Privilege CRUD for managing per-role permissions
+- ✅ Filtering RolePrivileges by RoleId using `GetAllByFilterAsync()` with lambda expressions
 
 **Happy Coding!** 🚀
 
